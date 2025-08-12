@@ -113,6 +113,21 @@ You will get a suite of useful entities, including:
 
 This allows you, for example, to trigger other automations (like closing blinds or changing indoor lighting) based on the data from this device, which can be more reliable and customized than HA's built-in sun integration.
 
+## Daylight Saving Time (DST) Handling
+
+This device is designed to be completely immune to errors related to seasonal time changes.
+
+**How it works:** The device's internal clock and all core logic (sunrise/sunset calculations, relay control) operate exclusively on the **UTC** standard. UTC does not observe Daylight Saving Time, making it a stable and predictable anchor.
+
+**Your Responsibility:** You, the user, are in control of the local time display. The only action required is to adjust the **`UTC Offset Hours`** slider in the web interface twice a year.
+
+* **Example (Central Europe):**
+    * During summer (CEST), you set the offset to `+2.0`.
+    * During winter (CET), you change the offset to `+1.0`.
+
+This architecture ensures maximum reliability, as the core scheduling logic is never affected by DST bugs or regional timezone rule changes.
+
+
 
 ## License
 
@@ -237,6 +252,20 @@ Sun Relay — це повністю автономний, розумний ко�
 * **Статус пристрою:** `switch.sun_relay` (для моніторингу та ручного керування), `sensor.time_source` та `sensor.wifi_signal`.
 
 Це дозволяє вам, наприклад, запускати інші автоматизації (як-от закриття штор або зміна освітлення в кімнаті), спираючись на дані з цього пристрою, що може бути надійніше та гнучкіше, ніж вбудована інтеграція сонця в Home Assistant.
+
+### Робота з літнім/зимовим часом (DST)
+
+Цей пристрій розроблений так, щоб бути повністю невразливим до помилок, пов'язаних із сезонною зміною часу.
+
+**Як це працює:** Внутрішній годинник пристрою та вся основна логіка (розрахунки сходу/заходу сонця, керування реле) працюють виключно за стандартом **UTC**. UTC не має переходів на літній/зимовий час, що робить його стабільною та передбачуваною точкою відліку.
+
+**Ваша відповідальність:** Ви, як користувач, керуєте відображенням локального часу. Єдина дія, яка потрібна — це коригувати повзунок **`UTC Offset Hours`** у вебінтерфейсі двічі на рік.
+
+* **Приклад (Центральна Європа):**
+    * Влітку (CEST), ви встановлюєте зміщення `+2.0`.
+    * Взимку (CET), ви змінюєте зміщення на `+1.0`.
+
+Така архітектура забезпечує максимальну надійність, оскільки на основну логіку роботи ніколи не впливають помилки, пов'язані з переведенням годинників або змінами правил у часових поясах.
 
   
 ## Ліцензія
