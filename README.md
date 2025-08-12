@@ -119,7 +119,7 @@ This device is designed to be completely immune to errors related to seasonal ti
 
 **How it works:** The device's internal clock and all core logic (sunrise/sunset calculations, relay control) operate exclusively on the **UTC** standard. UTC does not observe Daylight Saving Time, making it a stable and predictable anchor.
 
-**Your Responsibility:** You, the user, are in control of the local time display. The only action required is to adjust the **`UTC Offset Hours`** slider in the web interface twice a year.
+**Your role is simply to adjust the `UTC Offset Hours` slider if you want the displayed times to match your local wall clock. This is typically done twice a year when DST starts or ends.
 
 * **Example (Central Europe):**
     * During summer (CEST), you set the offset to `+2.0`.
@@ -259,7 +259,7 @@ Sun Relay — це повністю автономний, розумний ко�
 
 **Як це працює:** Внутрішній годинник пристрою та вся основна логіка (розрахунки сходу/заходу сонця, керування реле) працюють виключно за стандартом **UTC**. UTC не має переходів на літній/зимовий час, що робить його стабільною та передбачуваною точкою відліку.
 
-**Ваша відповідальність:** Ви, як користувач, керуєте відображенням локального часу. Єдина дія, яка потрібна — це коригувати повзунок **`UTC Offset Hours`** у вебінтерфейсі двічі на рік.
+**Роль користувача зводиться лише до того, щоб коригувати повзунок `UTC Offset Hours`, якщо є бажання, щоб час на дисплеї відповідав місцевому годиннику. Зазвичай це робиться двічі на рік при переході на літній або зимовий час.
 
 * **Приклад (Центральна Європа):**
     * Влітку (CEST), ви встановлюєте зміщення `+2.0`.
