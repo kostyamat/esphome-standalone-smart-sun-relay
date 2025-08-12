@@ -99,7 +99,7 @@ This firmware is built to be exceptionally robust by using several advanced tech
 
 ## Українська версія
 
-[English Version](#top)
+## [English Version](#top)
 
 ## Що таке Sun Relay?
 
