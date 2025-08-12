@@ -47,7 +47,7 @@ The device is managed entirely through its web interface.
 
 ### 1. First Boot & Wi-Fi Provisioning
 After flashing the firmware, the device will not know your Wi-Fi credentials.
-1.  On its first boot, the device will create its own Wi-Fi Access Point named **`Sun Relay Fallback`** with the password `12345678`.
+1.  On its first boot, the device will create its own Wi-Fi Access Point named **`sun-elay-MAC`** with the password `12345678`.
 2.  Connect to this network with your phone or laptop.
 3.  Open a web browser and go to `192.168.4.1`.
 4.  You will see the device's web interface. Use the **"WiFi control"** section to enter your home Wi-Fi SSID and password and click **"Save and connect to new Wifi"**.
@@ -92,6 +92,36 @@ This firmware is built to be exceptionally robust by using several advanced tech
     * **Factory Reset Recovery:** A "magic flag" (`is_configured_flag`) in persistent memory ensures that after a full device reset, all settings are gracefully restored to safe, pre-defined defaults.
 
 * **A Note on `#include` Directives:** This code intentionally avoids using top-level `includes:` for standard C libraries like `<time.h>`. These are already part of the ESPHome build framework, and including them again can cause compilation conflicts. This directive should be reserved for external, custom C++ header files.
+  ## Home Assistant Integration
+
+## Home Assistant Integration
+
+### Automatic Discovery
+If you are using the ESPHome integration, the device will be automatically discovered by your Home Assistant instance. All controls and sensors from the web interface will appear as corresponding entities.
+
+**Note:** For this to work, the `api:` section in the `sun-relay.yaml` file must be enabled.
+
+### Philosophy of Autonomy
+The key idea behind this project is **reliability and full autonomy**. The device does not depend on Home Assistant to perform its primary task. Even if your Home Assistant server is offline, this controller will continue to switch the lights on and off perfectly according to the sunrise and sunset schedule.
+
+### Role in Home Assistant: A Rich Data Source
+Because of its autonomous nature, the device's core sun-tracking logic is not controlled by Home Assistant. Instead, it serves as a **rich data source and sensor platform**, providing your smart home with precise and reliable astronomical data.
+
+You will get a suite of useful entities, including:
+* **Astronomical Events:** `sensor.next_sunrise` and `sensor.next_sunset`.
+* **Calculated Relay Times:** `sensor.relay_on_time` and `sensor.relay_off_time`, which include any user-defined offsets.
+* **Device Status:** `switch.sun_relay` (for monitoring and manual override), `sensor.time_source`, and `sensor.wifi_signal`.
+
+This allows you, for example, to trigger other automations (like closing blinds or changing indoor lighting) based on the data from this device, which can be more reliable and customized than HA's built-in sun integration.
+
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Contributing
+
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
 <br>
 ---
@@ -143,7 +173,7 @@ Sun Relay — це повністю автономний, розумний ко�
 
 ### 1. Перше завантаження та налаштування Wi-Fi
 Після прошивки пристрій не знатиме даних вашої Wi-Fi мережі.
-1.  При першому запуску пристрій створить власну точку доступу Wi-Fi з назвою **`Sun Relay Fallback`** та паролем `12345678`.
+1.  При першому запуску пристрій створить власну точку доступу Wi-Fi з назвою **`sun-elay-MAC`** та паролем `12345678`.
 2.  Підключіться до цієї мережі з телефону або ноутбука.
 3.  Відкрийте браузер і перейдіть за адресою `192.168.4.1`.
 4.  Ви побачите вебінтерфейс пристрою. Використовуйте секцію **"WiFi control"**, щоб ввести назву (SSID) та пароль вашої домашньої мережі Wi-Fi і натисніть **"Save and connect to new Wifi"**.
@@ -188,3 +218,30 @@ Sun Relay — це повністю автономний, розумний ко�
     * **Відновлення після скидання:** "Магічний прапорець" (`is_configured_flag`) у постійній пам'яті гарантує, що після повного скидання пристрою всі налаштування будуть коректно відновлені до безпечних значень за замовчуванням.
 
 * **Примітка щодо директив `#include`:** Цей код навмисно уникає використання `includes:` верхнього рівня для стандартних бібліотек C, таких як `<time.h>`. Вони вже є частиною фреймворку збірки ESPHome, і їх повторне включення може викликати конфлікти компілятора. Цю директиву слід резервувати для підключення власних кастомних файлів заголовків C++.
+
+## Інтеграція з Home Assistant
+
+### Автоматичне виявлення
+Якщо ви використовуєте інтеграцію ESPHome, пристрій буде автоматично знайдено у вашому Home Assistant. Всі елементи керування та сенсори з вебінтерфейсу з'являться як відповідні сутності (entities).
+
+**Примітка:** Для того, щоб це працювало, секція `api:` у файлі `sun-relay.yaml` має бути увімкнена (розкоментована).
+
+### Філософія автономності
+Ключова ідея цього проєкту — **надійність та повна автономність**. Пристрій не залежить від Home Assistant для виконання свого основного завдання. Навіть якщо ваш сервер Home Assistant вимкнеться, контролер продовжить вмикати та вимикати світло за розкладом сходу/заходу сонця.
+
+### Роль у Home Assistant: Джерело даних
+Через свою автономну природу, основна логіка пристрою, що відстежує сонце, не керується з Home Assistant. Замість цього, він виступає як **багате джерело даних та платформа сенсорів**, надаючи вашому розумному будинку точні астрономічні дані.
+
+Ви отримаєте набір корисних сутностей, серед яких:
+* **Астрономічні події:** `sensor.next_sunrise` та `sensor.next_sunset`.
+* **Розрахований час роботи реле:** `sensor.relay_on_time` та `sensor.relay_off_time`, які враховують будь-які встановлені вами зміщення.
+* **Статус пристрою:** `switch.sun_relay` (для моніторингу та ручного керування), `sensor.time_source` та `sensor.wifi_signal`.
+
+Це дозволяє вам, наприклад, запускати інші автоматизації (як-от закриття штор або зміна освітлення в кімнаті), спираючись на дані з цього пристрою, що може бути надійніше та гнучкіше, ніж вбудована інтеграція сонця в Home Assistant.
+
+  
+## Ліцензія
+Цей проект ліцензований під ліцензією MIT - дивіться файл LICENSE для деталей.
+
+## Внесок у проект
+Pull request'и вітаються. Для значних змін, будь ласка, спочатку відкрийте issue для обговорення того, що ви хотіли б змінити.
