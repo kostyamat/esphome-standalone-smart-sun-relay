@@ -92,7 +92,6 @@ This firmware is built to be exceptionally robust by using several advanced tech
     * **Factory Reset Recovery:** A "magic flag" (`is_configured_flag`) in persistent memory ensures that after a full device reset, all settings are gracefully restored to safe, pre-defined defaults.
 
 * **A Note on `#include` Directives:** This code intentionally avoids using top-level `includes:` for standard C libraries like `<time.h>`. These are already part of the ESPHome build framework, and including them again can cause compilation conflicts. This directive should be reserved for external, custom C++ header files.
-  ## Home Assistant Integration
 
 ## Home Assistant Integration
 
