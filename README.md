@@ -1,9 +1,9 @@
 # Sun Relay Controller
 
-![Device Photo]()
-![Web Interface Screenshot]()
+![](docs/webinterface.png) ![](docs/webinterface-.png) 
+![](docs/ha-interface.png) ![](docs/ha-interface-.png)
 
-[Українська версія](#ukrainian-version)
+##[🇺🇦 Українська версія](#ukrainian-version)
 
 ## What is Sun Relay?
 
