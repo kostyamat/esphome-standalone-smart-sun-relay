@@ -47,7 +47,7 @@ The device is managed entirely through its web interface.
 
 ### 1. First Boot & Wi-Fi Provisioning
 After flashing the firmware, the device will not know your Wi-Fi credentials.
-1.  On its first boot, the device will create its own Wi-Fi Access Point named **`sun-elay-MAC`** with the password `12345678`.
+1.  On its first boot, the device will create its own Wi-Fi Access Point named **`sun-relay-MAC`** with the password `12345678`.
 2.  Connect to this network with your phone or laptop.
 3.  Open a web browser and go to `192.168.4.1`.
 4.  You will see the device's web interface. Use the **"WiFi control"** section to enter your home Wi-Fi SSID and password and click **"Save and connect to new Wifi"**.
@@ -187,7 +187,7 @@ Sun Relay — це повністю автономний, розумний ко�
 
 ### 1. Перше завантаження та налаштування Wi-Fi
 Після прошивки пристрій не знатиме даних вашої Wi-Fi мережі.
-1.  При першому запуску пристрій створить власну точку доступу Wi-Fi з назвою **`sun-elay-MAC`** та паролем `12345678`.
+1.  При першому запуску пристрій створить власну точку доступу Wi-Fi з назвою **`sun-relay-MAC`** та паролем `12345678`.
 2.  Підключіться до цієї мережі з телефону або ноутбука.
 3.  Відкрийте браузер і перейдіть за адресою `192.168.4.1`.
 4.  Ви побачите вебінтерфейс пристрою. Використовуйте секцію **"WiFi control"**, щоб ввести назву (SSID) та пароль вашої домашньої мережі Wi-Fi і натисніть **"Save and connect to new Wifi"**.
