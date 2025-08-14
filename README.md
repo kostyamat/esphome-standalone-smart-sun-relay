@@ -113,19 +113,16 @@ You will get a suite of useful entities, including:
 
 This allows you, for example, to trigger other automations (like closing blinds or changing indoor lighting) based on the data from this device, which can be more reliable and customized than HA's built-in sun integration.
 
-## Daylight Saving Time (DST) Handling
+## Daylight Saving Time (DST) & The Role of Offsets
 
-This device is designed to be completely immune to errors related to seasonal time changes.
+This device is designed to be completely immune to errors related to seasonal time changes. This is achieved by a strict separation between the device's internal logic and the user display.
 
-**How it works:** The device's internal clock and all core logic (sunrise/sunset calculations, relay control) operate exclusively on the **UTC** standard. UTC does not observe Daylight Saving Time, making it a stable and predictable anchor.
+* **Control Logic:** The device's core logic—when the relay actually turns on and off—is based **only** on the true astronomical sunrise and sunset in UTC. This internal schedule is stable and never changes. The small `Sunrise/Sunset Offset Hours` sliders allow you to fine-tune this schedule directly.
 
-**Your role is simply to adjust the `UTC Offset Hours` slider if you want the displayed times to match your local wall clock. This is typically done twice a year when DST starts or ends.
+* **Display Logic:** The main **`UTC Offset Hours`** slider has **no effect on the relay's switching logic**. Its sole purpose is to provide a convenient local time display in the web interface.
 
-* **Example (Central Europe):**
-    * During summer (CEST), you set the offset to `+2.0`.
-    * During winter (CET), you change the offset to `+1.0`.
+**User intervention is not required for the device to function correctly.** You only need to adjust the `UTC Offset Hours` slider if you want the displayed times (like "Current Time" or "Next Sunrise") to match your local wall clock. This is typically done twice a year when DST starts or ends.
 
-This architecture ensures maximum reliability, as the core scheduling logic is never affected by DST bugs or regional timezone rule changes.
 
 
 
@@ -253,19 +250,15 @@ Sun Relay — це повністю автономний, розумний ко�
 
 Це дозволяє вам, наприклад, запускати інші автоматизації (як-от закриття штор або зміна освітлення в кімнаті), спираючись на дані з цього пристрою, що може бути надійніше та гнучкіше, ніж вбудована інтеграція сонця в Home Assistant.
 
-### Робота з літнім/зимовим часом (DST)
+### Літній/зимовий час (DST) та роль зміщень
 
-Цей пристрій розроблений так, щоб бути повністю невразливим до помилок, пов'язаних із сезонною зміною часу.
+Цей пристрій розроблений так, щоб бути повністю невразливим до помилок, пов'язаних із сезонною зміною часу. Це досягається завдяки чіткому розділенню внутрішньої логіки пристрою та інтерфейсу користувача.
 
-**Як це працює:** Внутрішній годинник пристрою та вся основна логіка (розрахунки сходу/заходу сонця, керування реле) працюють виключно за стандартом **UTC**. UTC не має переходів на літній/зимовий час, що робить його стабільною та передбачуваною точкою відліку.
+* **Логіка керування:** Основна логіка пристрою — фактичний час ввімкнення та вимкнення реле — базується **лише** на справжньому астрономічному сході та заході сонця в UTC. Цей внутрішній розклад є стабільним і ніколи не змінюється. Малі повзунки `Sunrise/Sunset Offset Hours` дозволяють вам тонко налаштувати безпосередньо цей розклад.
 
-**Роль користувача зводиться лише до того, щоб коригувати повзунок `UTC Offset Hours`, якщо є бажання, щоб час на дисплеї відповідав місцевому годиннику. Зазвичай це робиться двічі на рік при переході на літній або зимовий час.
+* **Логіка відображення:** Головний повзунок **`UTC Offset Hours`** **ніяк не впливає на логіку перемикання реле**. Його єдина мета — забезпечити зручне відображення місцевого часу у вебінтерфейсі.
 
-* **Приклад (Центральна Європа):**
-    * Влітку (CEST), ви встановлюєте зміщення `+2.0`.
-    * Взимку (CET), ви змінюєте зміщення на `+1.0`.
-
-Така архітектура забезпечує максимальну надійність, оскільки на основну логіку роботи ніколи не впливають помилки, пов'язані з переведенням годинників або змінами правил у часових поясах.
+**Для правильної роботи пристрою втручання користувача не потрібне.** Коригувати повзунок `UTC Offset Hours` потрібно лише в тому випадку, якщо ви хочете, щоб час на дисплеї (наприклад, "Current Time" або "Next Sunrise") відповідав вашому місцевому годиннику. Зазвичай це робиться двічі на рік при переході на літній або зимовий час.
 
   
 ## Ліцензія
