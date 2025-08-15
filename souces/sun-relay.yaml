@@ -204,6 +204,7 @@ globals:
     type: bool
     initial_value: 'false'
 
+
 text:
   - platform: template
     name: "Latitude"
@@ -343,13 +344,24 @@ number:
 
 switch:
   - platform: gpio
-    pin: D5
-    name: "Sun Relay"
+    pin: D3
+    name: "Relay"
     id: relay
+    inverted: true  #Залежить від типу реле
     restore_mode: RESTORE_DEFAULT_ON
     web_server:
       sorting_group_id: control_group
       sorting_weight: 10
+
+  - platform: template
+    name: "Auto Mode"
+    id: auto_mode_switch
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON # За замовчуванням завжди вмикати авто-режим
+    web_server:
+      sorting_group_id: control_group
+      sorting_weight: 5
+
 
 sensor:
   - platform: wifi_signal
@@ -561,9 +573,17 @@ interval:
   - interval: 10s
     then:
       - lambda: |-
+          // Якщо "Auto Mode" вимкнено, нічого не робимо і виходимо.
+          // Користувач керує реле вручну через свіч "Sun Relay".
+          if (!id(auto_mode_switch).state) {
+            return;
+          }
+
+          // --- Логіка автоматичного режиму ---
           setenv("TZ", "UTC0", 1);
           tzset();
-          ESP_LOGI("rtc_sync", "This is hack! C-library timezone has been periodic re-forced to UTC.");
+          ESP_LOGI("main", "C-library timezone has been FORCED to UTC.");
+
           auto current_time = id(sntp_time).utcnow();
           if (!current_time.is_valid()) {
             if (!id(relay).state) id(relay).turn_on();
@@ -618,7 +638,7 @@ interval:
                       id(g_time_source) = "RTC";
                       id(time_source_sensor).publish_state("RTC");
 
-  - interval: 600s 
+  - interval: 1h 
     then:
       - if:
           condition:
@@ -626,6 +646,13 @@ interval:
           then:
             - lambda: 'ESP_LOGD("sntp_sync", "Performing periodic SNTP time sync.");'
             - component.update: sntp_time
+            - lambda: |-
+                setenv("TZ", "UTC0", 1);
+                tzset();
+                ESP_LOGI("rtc_sync", "C-library timezone has been re-forced to UTC after RTC read.");
+                id(g_time_source) = "SNTP";
+                id(time_source_sensor).publish_state("SNTP");
+
 
 button:
   - platform: template
