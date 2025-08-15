@@ -35,7 +35,7 @@ Connect the components according to the following scheme:
 | **GND** | Relay Module `GND`, RTC `GND`   |
 | **D1 (SCL)** | RTC Module `SCL`                |
 | **D2 (SDA)** | RTC Module `SDA`                |
-| **D5** | Relay Module `IN` (Input)       |
+| **D3** | Relay Module `IN` (Input)       |
 
 
 
@@ -172,7 +172,7 @@ Sun Relay — це повністю автономний, розумний ко�
 | **GND** | Модуль реле `GND`, RTC `GND`    |
 | **D1 (SCL)** | Модуль RTC `SCL`                |
 | **D2 (SDA)** | Модуль RTC `SDA`                |
-| **D5** | Модуль реле `IN` (вхід)         |
+| **D3** | Модуль реле `IN` (вхід)         |
 
 
 
