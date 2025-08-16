@@ -40,7 +40,6 @@ esphome:
       
       # Крок 3: ПРИМУСОВО встановлюємо UTC для всіх C-бібліотек ПІСЛЯ всіх операцій з часом.
       - lambda: |-
-          #include <time.h>
           setenv("TZ", "UTC0", 1);
           tzset();
           ESP_LOGI("main", "C-library timezone has been FORCED to UTC.");
