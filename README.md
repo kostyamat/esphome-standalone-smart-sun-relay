@@ -1,64 +1,62 @@
-````md
-[Українська версія](#-esphome-standalone-smart-sun-relay-1)
+[Українська версія](https://www.google.com/search?q=%23-esphome-standalone-smart-sun-relay-1)
 
 # ESPHome Standalone Smart Sun Relay
 
-[![PlatformIO CI](https://github.com/kostyamat/esphome-standalone-smart-sun-relay/actions/workflows/ci.yaml/badge.svg)](https://github.com/kostyamat/esphome-standalone-smart-sun-relay/actions/workflows/ci.yaml)
-[![GitHub release](https://img.shields.io/github/v/release/kostyamat/esphome-standalone-smart-sun-relay.svg)](https://github.com/kostyamat/esphome-standalone-smart-sun-relay/releases/latest)
-[![License](https://img.shields.io/github/license/kostyamat/esphome-standalone-smart-sun-relay)](./LICENSE)
+[](https://www.google.com/search?q=https://github.com/kostyamat/esphome-standalone-smart-sun-relay/actions/workflows/ci.yaml)
+[](https://www.google.com/search?q=https://github.com/kostyamat/esphome-standalone-smart-sun-relay/releases/latest)
+[](https://www.google.com/search?q=./LICENSE)
 
 An advanced controller for managing lighting (or any other load) based on ESP8266 and ESPHome. The device can operate completely standalone or be integrated with Home Assistant. The core logic is based on calculating sunrise and sunset for the current geolocation, but its flexible settings allow it to be used as a multi-functional timer.
 
-![Web Interface Screenshot](https://github.com/kostyamat/esphome-standalone-smart-sun-relay/raw/main/img/web_interface.png)
 *(Note: The screenshot shows a previous version of the UI. The new version includes an additional "Timer only" option in the "Operation Mode" dropdown.)*
 
 ## 🚀 Key Features
 
-* **Fully Standalone:** Does not require a central server (like Home Assistant) to operate. Management is done through a built-in web interface.
-* **Three Flexible Operation Modes:**
+  * **Fully Standalone:** Does not require a central server (like Home Assistant) to operate. Management is done through a built-in web interface.
+  * **Three Flexible Operation Modes:**
     1.  `Sun Relay Only`: Fully automatic control based on sunrise/sunset.
     2.  `Sun Relay with Timer`: A hybrid mode where the timer can be activated at night.
     3.  `Timer only`: A manual mode where the timer can be activated at any time of day.
-* **Astronomical Calculation:** Automatically determines sunrise and sunset times based on the specified coordinates (latitude and longitude).
-* **RTC Backup Time Source:** Supports the DS1307 RTC module, allowing the device to maintain accurate time even without an internet connection.
-* **Advanced Web Interface:** Allows configuring all parameters on the fly, including:
-    * Geographic coordinates and time zone (UTC).
-    * Offsets for sunrise/sunset times.
-    * Timer duration.
-    * Wi-Fi settings.
-* **Home Assistant Integration:** Provides a service to remotely trigger and restart the timer, enabling complex automations.
-* **Robust Failure Protection:** The system detects a "stuck" physical button and enters an alarm mode. The alarm is deactivated **instantly** upon resolving the issue.
-* **OTA Updates:** Supports over-the-air firmware updates via ESPHome or the web interface.
+  * **Astronomical Calculation:** Automatically determines sunrise and sunset times based on the specified coordinates (latitude and longitude).
+  * **RTC Backup Time Source:** Supports the DS1307 RTC module, allowing the device to maintain accurate time even without an internet connection.
+  * **Advanced Web Interface:** Allows configuring all parameters on the fly, including:
+      * Geographic coordinates and time zone (UTC).
+      * Offsets for sunrise/sunset times.
+      * Timer duration.
+      * Wi-Fi settings.
+  * **Home Assistant Integration:** Provides a service to remotely trigger and restart the timer, enabling complex automations.
+  * **Robust Failure Protection:** The system detects a "stuck" physical button and enters an alarm mode. The alarm is deactivated **instantly** upon resolving the issue.
+  * **OTA Updates:** Supports over-the-air firmware updates via ESPHome or the web interface.
 
----
+-----
 
 ## ⚙️ Operation Modes
 
 The device supports three modes, which can be switched via the web interface.
 
-### 1. Sun Relay Only
+### 1\. Sun Relay Only
 
 This is the basic, fully automatic mode.
 
-* The relay **turns ON** at sunset (considering the offset).
-* The relay **turns OFF** at sunrise (considering the offset).
-* The physical button and timer are inactive in this mode.
+  * The relay **turns ON** at sunset (considering the offset).
+  * The relay **turns OFF** at sunrise (considering the offset).
+  * The physical button and timer are inactive in this mode.
 
-### 2. Sun Relay with Timer
+### 2\. Sun Relay with Timer
 
 A hybrid mode, ideal for passageways (corridors, stairs) during the night.
 
-* **During the day:** The relay is always off.
-* **At night:** The relay is off by default. The light can be turned on for a specified duration (e.g., 60 seconds) by pressing the physical button or calling the Home Assistant service. The light will automatically turn off after the countdown finishes.
+  * **During the day:** The relay is always off.
+  * **At night:** The relay is off by default. The light can be turned on for a specified duration (e.g., 60 seconds) by pressing the physical button or calling the Home Assistant service. The light will automatically turn off after the countdown finishes.
 
-### 3. Timer only
+### 3\. Timer only
 
 A fully manual mode that ignores sunrise and sunset times.
 
-* The relay is always off by default.
-* The light can be turned on for a specified duration **at any time of day** by pressing the physical button or calling the Home Assistant service.
+  * The relay is always off by default.
+  * The light can be turned on for a specified duration **at any time of day** by pressing the physical button or calling the Home Assistant service.
 
----
+-----
 
 ## 🔌 Home Assistant Integration
 
@@ -68,14 +66,14 @@ After adding the device to Home Assistant, a special service for controlling the
 
 **Capabilities:**
 
-* **Start Timer:** Activates the timer just like the physical button.
-* **Restart Timer:** If the timer is already running, calling this service will **restart** the countdown from the beginning.
+  * **Start Timer:** Activates the timer just like the physical button.
+  * **Restart Timer:** If the timer is already running, calling this service will **restart** the countdown from the beginning.
 
 **Service Logic:**
 
-* In `Sun Relay with Timer` mode: Will only work **at night**.
-* In `Timer only` mode: Will work **at any time of day**.
-* In `Sun Relay Only` mode: The service call will be ignored.
+  * In `Sun Relay with Timer` mode: Will only work **at night**.
+  * In `Timer only` mode: Will work **at any time of day**.
+  * In `Sun Relay Only` mode: The service call will be ignored.
 
 **Example Automation in Home Assistant (automation.yaml):**
 
@@ -87,7 +85,7 @@ After adding the device to Home Assistant, a special service for controlling the
       to: 'on'
   action:
     - service: esphome.sun_lights_controller_button_press
-````
+```
 
 -----
 
@@ -142,11 +140,8 @@ After adding the device to Home Assistant, a special service for controlling the
 ## 📦 Installation
 
 1.  Place the `sun-relay.yaml` and the required `sun_functions.h` file in your ESPHome configuration directory.
-
 2.  Create a `secrets.yaml` file to add your Wi-Fi credentials.
-
 3.  Compile and upload the firmware to your device.
-
     ```bash
     esphome run sun-relay.yaml
     ```
@@ -157,8 +152,8 @@ After adding the device to Home Assistant, a special service for controlling the
 
 # ESPHome Standalone Smart Sun Relay
 
-[](https://www.google.com/url?sa=E&source=gmail&q=https://github.com/kostyamat/esphome-standalone-smart-sun-relay/actions/workflows/ci.yaml)
-[](https://www.google.com/url?sa=E&source=gmail&q=https://github.com/kostyamat/esphome-standalone-smart-sun-relay/releases/latest)
+[](https://www.google.com/search?q=https://github.com/kostyamat/esphome-standalone-smart-sun-relay/actions/workflows/ci.yaml)
+[](https://www.google.com/search?q=https://github.com/kostyamat/esphome-standalone-smart-sun-relay/releases/latest)
 [](https://www.google.com/search?q=./LICENSE)
 
 Просунутий контролер для керування освітленням (або будь-яким іншим навантаженням) на базі ESP8266 та ESPHome. Пристрій може працювати як повністю автономно, так і в інтеграції з Home Assistant. Основна логіка базується на розрахунку сходу та заходу сонця для поточної геолокації, але гнучкі налаштування дозволяють використовувати його як багатофункціональний таймер.
@@ -295,16 +290,8 @@ After adding the device to Home Assistant, a special service for controlling the
 ## 📦 Встановлення
 
 1.  Розмістіть файли `sun-relay.yaml` та `sun_functions.h` в одній директорії конфігурації ESPHome.
-
 2.  Створіть файл `secrets.yaml`, щоб додати облікові дані вашої мережі Wi-Fi.
-
 3.  Скомпілюйте та завантажте прошивку на ваш пристрій.
-
     ```bash
     esphome run sun-relay.yaml
     ```
-
-<!-- end list -->
-
-```
-```
