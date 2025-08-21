@@ -131,7 +131,7 @@ After adding the device to Home Assistant, a special service for controlling the
   * Button: `D6`
   * DS1307 SDA: `D2`
   * DS1307 SCL: `D1`
-![](/docs/Schematic_Sub_Relay_with_Timer.png)
+![](/docs/Schematic_Sun-Relay-with-Timer.png)
 
 ## 📚 Dependencies
 
@@ -283,7 +283,7 @@ After adding the device to Home Assistant, a special service for controlling the
   * DS1307 SDA: `D2`
   * DS1307 SCL: `D1`
 
-![](/docs/Schematic_Sub_Relay_with_Timer.png)
+![](/docs/Schematic_Sun-Relay-with-Timer.png)
 
 ## 📚 Залежності
 
