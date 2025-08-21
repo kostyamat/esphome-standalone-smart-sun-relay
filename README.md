@@ -283,7 +283,7 @@ After adding the device to Home Assistant, a special service for controlling the
   * DS1307 SDA: `D2`
   * DS1307 SCL: `D1`
 
-![](/docs/Schematic_Sun-Relay-with-Timer.png)
+![](/docs/Schematic_Sun-Relay-with-Timer_UA.png)
 
 ## 📚 Залежності
 
