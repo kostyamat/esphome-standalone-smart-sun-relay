@@ -14,9 +14,10 @@ An advanced controller for managing lighting (or any other load) based on ESP826
 </p>
 
 <p align="center">
-  <span style="display: inline-block; vertical-align: top; width: 100%;">
+  <p vertical-align="top">
     <img src="/docs/ha-interface.png" style="width: 30%;">
     <img src="/docs/ha-interface-.png" style="width: 30%;">
+  </p>
 </p>
 
 ## 🚀 Key Features
