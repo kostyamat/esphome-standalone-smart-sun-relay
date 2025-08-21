@@ -1,0 +1,1005 @@
+esphome:
+  # General device information
+  name: sun-lights-controller
+  friendly_name: "Sun Corridor Lights Controller"
+  name_add_mac_suffix: true
+
+  # Include custom C++ functions from a local header file
+  includes:
+    - sun_functions.h
+
+  # Actions to perform on device boot
+  on_boot:
+    - priority: -100 # Run all boot logic in a single, high-priority sequence
+      then:
+        # Step 1: Set initial relay state based on the restored operation mode (safe mode)
+        - lambda: |-
+            if (id(g_operation_mode) == "Sun Relay with Timer" || id(g_operation_mode) == "Timer only") {
+              // In Timer mode, the default safe state is OFF
+              id(relay).turn_off();
+              ESP_LOGI("main", "Boot sequence started. Mode is 'Timer', Relay OFF (safe mode).");
+            } else {
+              // For all other modes, the default safe state is ON
+              id(relay).turn_on();
+              ESP_LOGI("main", "Boot sequence started. Relay ON (safe mode).");
+            }
+            
+            id(g_time_source) = "NONE";
+            id(time_source_sensor).publish_state("NONE");
+
+        # Step 2: Check if the DS1307 RTC module is physically present
+        - lambda: |-
+            if (id(rtc_time).is_failed()) {
+              ESP_LOGW("rtc_check", "DS1307 component failed to set up. RTC is not present.");
+              id(g_rtc_present) = false;
+            } else {
+              ESP_LOGI("rtc_check", "DS1307 component initialized successfully. RTC is present.");
+              id(g_rtc_present) = true;
+            }
+
+        # Step 3: If RTC is present, read time from it as a backup source
+        - if:
+            condition:
+              lambda: 'return id(g_rtc_present);'
+            then:
+              - ds1307.read_time:
+              - lambda: |-
+                  if (id(sntp_time).utcnow().year < 2024) {
+                    ESP_LOGW("rtc_check", "RTC time is invalid (year < 2024). Ignoring time.");
+                  } else {
+                    ESP_LOGI("rtc_check", "Successfully loaded valid time from RTC.");
+                    if (id(g_time_source) != "SNTP") {
+                      id(g_time_source) = "RTC";
+                      id(time_source_sensor).publish_state("RTC");
+                    }
+                  }
+        
+        # Step 4: Force the underlying C-library timezone to UTC for consistent time calculations
+        - lambda: |-
+            setenv("TZ", "UTC0", 1);
+            tzset();
+            ESP_LOGI("main", "C-library timezone has been FORCED to UTC.");
+
+        # Step 5: If the device was factory reset, apply default configuration values
+        - lambda: |-
+            if (id(is_configured_flag) != true) {
+              ESP_LOGW("boot_check", "Device is not configured or was factory reset. Applying default values.");
+              id(latitude_value) = 37.2469; 
+              id(longitude_value) = -1.8682;
+              id(utc_offset) = 2.0;
+              id(sunrise_offset_hours) = 0.0;
+              id(sunset_offset_hours) = 0.0;
+              id(is_configured_flag) = true;
+            }
+
+        # Step 6: Final initialization of components and UI elements
+        - lambda: |-
+            id(sun_component).set_latitude(id(latitude_value));
+            id(sun_component).set_longitude(id(longitude_value));
+        - delay: 2s
+        - lambda: |-
+            // Sync all web interface elements with their stored global values
+            auto daytime_opt = is_daytime(id(sntp_time), id(sun_component));
+            if (daytime_opt.has_value()) {
+              id(g_is_daytime) = daytime_opt.value();
+            } else {
+              id(g_is_daytime) = false; // Safe default is "night"
+            }
+            auto call1 = id(latitude_text).make_call();
+            call1.set_value(to_string(id(latitude_value)));
+            call1.perform();
+
+            auto call2 = id(longitude_text).make_call();
+            call2.set_value(to_string(id(longitude_value)));
+            call2.perform();
+
+            auto call3 = id(utc_offset_number).make_call();
+            call3.set_value(id(utc_offset));
+            call3.perform();
+
+            auto call4 = id(sunrise_offset).make_call();
+            call4.set_value(id(sunrise_offset_hours));
+            call4.perform();
+
+            auto call5 = id(sunset_offset).make_call();
+            call5.set_value(id(sunset_offset_hours));
+            call5.perform();
+            
+            id(light_on_duration).publish_state(to_string(id(light_on_duration_seconds)));
+            id(operation_mode_select).publish_state(id(g_operation_mode));
+
+            // Force an update of all template sensors on boot
+            id(current_time_sensor).update();
+            id(next_sunrise_sensor).update();
+            id(next_sunset_sensor).update();
+            id(relay_on_time_sensor).update();
+            id(relay_off_time_sensor).update();
+            id(sun_control_status).update();
+            ESP_LOGI("main", "All template components synced with global values");
+
+# Hardware Platform Configuration
+esp8266:
+  board: d1_mini
+  restore_from_flash: true
+
+# I2C Bus for communication with RTC module
+i2c:
+  id: i2c_bus
+  sda: D2
+  scl: D1
+  scan: true
+
+# Switch entities for control
+switch:
+  # The main relay controlling the lights
+  - platform: gpio
+    pin: D3
+    name: "Relay"
+    id: relay
+    inverted: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    web_server:
+      sorting_group_id: control_group
+      sorting_weight: 10
+
+  # A software switch to enable/disable all automations
+  - platform: template
+    name: "Auto Mode"
+    id: auto_mode_switch
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    web_server:
+      sorting_group_id: control_group
+      sorting_weight: 5
+
+# Binary sensor for the physical push button
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: D6
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    id: corridor_button
+    name: "Corridor Light Button"
+    filters:
+      - delayed_on: 10ms
+    web_server:
+      sorting_group_id: control_group
+      sorting_weight: 17
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: |-
+                // Button press is disabled if alarm is active or timer is already running
+                if (id(g_alarm_mode_active) || id(light_timer_script).is_running()) {
+                  return false;
+                }
+                // In "Sun Relay with Timer" mode, button works only at night
+                if (id(g_operation_mode) == "Sun Relay with Timer") {
+                  return !id(g_is_daytime);
+                }
+                // In "Timer only" mode, button works anytime
+                if (id(g_operation_mode) == "Timer only") {
+                  return true;
+                }
+                // In all other modes, the button is disabled
+                return false;
+            then:
+              - script.execute: light_timer_script
+    on_release:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(g_alarm_mode_active);'
+            then:
+              - lambda: |-
+                  ESP_LOGI("main", "Stuck button condition resolved INSTANTLY. Deactivating alarm mode.");
+                  id(g_alarm_mode_active) = false;
+              - script.execute: update_status_script
+
+# Wi-Fi Configuration
+wifi:
+  power_save_mode: none
+  enable_on_boot: true
+  reboot_timeout: 0s
+  on_connect:
+    then:
+      - lambda: 'ESP_LOGD("wifi_sync", "Wi-Fi connected. Forcing SNTP time sync.");'
+      - component.update: sntp_time
+
+  # Access Point for initial setup
+  ap:
+    password: "12345678"
+    ap_timeout: 10s
+
+# Logging Configuration
+logger:
+
+# Native API for Home Assistant integration
+api:
+  services:
+    # This service makes the script available to Home Assistant under the name
+    # esphome.sun_lights_controller_button_press
+    - service: button_press
+      variables: {}
+      then:
+        - if:
+            condition:
+              lambda: |-
+                // In "Timer only" mode, the service always works.
+                if (id(g_operation_mode) == "Timer only") {
+                  return true;
+                }
+                // In "Sun Relay with Timer" mode, the service only works during the day.
+                if (id(g_operation_mode) == "Sun Relay with Timer") {
+                  return !id(g_is_daytime);
+                }
+                // In all other cases (including "Sun Relay Only"), the service does not work.
+                return false;
+            then:
+              # Stop the script if it is already running
+              - script.stop: light_timer_script
+              # Execute the script from the beginning
+              - script.execute: light_timer_script
+
+  reboot_timeout: 0s
+    
+
+# Over-The-Air (OTA) Update Configuration
+ota:
+  - platform: esphome
+  - platform: web_server
+
+# Web Server for standalone UI
+web_server:
+  port: 80
+  include_internal: true
+  local: true
+  version: 3
+
+  # Defines groups for organizing entities in the web UI
+  sorting_groups:
+    - id: time_group
+      name: "Time & Sources"
+      sorting_weight: 10
+    - id: location_group
+      name: "Location & Offset"
+      sorting_weight: 20
+    - id: control_group
+      name: "Control"
+      sorting_weight: 30
+    - id: wifi_group
+      name: "WiFi control"
+      sorting_weight: 40
+
+# Time sources configuration
+time:
+  # Primary time source: SNTP (Internet time)
+  - platform: sntp
+    id: sntp_time
+    timezone: UTC
+    servers:
+      - "pool.ntp.org"
+      - "time.google.com"
+    on_time_sync:
+      then:
+        # If RTC is present, write the new synchronized time to it
+        - if:
+            condition:
+              lambda: 'return id(g_rtc_present);'
+            then:
+              - ds1307.write_time:
+                  id: rtc_time
+              - lambda: 'ESP_LOGI("time", "Time written to DS1307 RTC.");'
+        - lambda: |-
+            if (network::is_connected()) {
+              id(g_time_source) = "SNTP";
+              id(time_source_sensor).publish_state("SNTP");
+              ESP_LOGI("time", "SNTP time synchronized.");
+            }
+  # Backup time source: DS1307 Real-Time Clock
+  - platform: ds1307
+    id: rtc_time
+
+# Global variables used throughout the automations
+globals:
+  # --- Location and Offset Settings ---
+  - id: latitude_value
+    type: float
+    initial_value: '37.2469'
+    restore_value: true
+  - id: longitude_value
+    type: float
+    initial_value: '-1.8682'
+    restore_value: true
+  - id: utc_offset
+    type: float
+    initial_value: '2.0'
+    restore_value: true
+  - id: sunrise_offset_hours
+    type: float
+    initial_value: '0.0'
+    restore_value: true
+  - id: sunset_offset_hours
+    type: float
+    initial_value: '0.0'
+    restore_value: true
+  # --- Wi-Fi Re-configuration Settings ---
+  - id: new_ssid
+    type: std::string
+    restore_value: false
+  - id: new_password
+    type: std::string
+    restore_value: false
+  # --- System State Flags ---
+  - id: is_configured_flag # Tracks if the device has been configured since last factory reset
+    type: bool
+    initial_value: 'false'
+    restore_value: true
+  - id: g_time_source # Tracks the current source of time (SNTP, RTC, Manual)
+    type: std::string
+    initial_value: '"NONE"'
+    restore_value: true
+  - id: g_rtc_present # Tracks if the RTC module was found on boot
+    type: bool
+    initial_value: 'false'
+  - id: g_operation_mode # Stores the currently selected operation mode
+    type: std::string
+    initial_value: '"Sun Relay Only"'
+    restore_value: true
+  - id: g_alarm_mode_active # Flag for the stuck button/relay alarm state
+    type: bool
+    initial_value: 'false'
+    restore_value: false 
+  - id: g_is_daytime # Global flag for day/night state, calculated once per minute
+    type: bool
+    initial_value: 'false' 
+  # --- Timer Settings ---
+  - id: light_on_duration_seconds # Stores the duration for the timer mode
+    type: int
+    initial_value: '60'
+    restore_value: true
+  - id: g_countdown_seconds # A counter for the while-loop based countdown
+    type: int
+    initial_value: '0'
+
+# Text input entities for the web UI
+text:
+  # Input for Latitude
+  - platform: template
+    name: "Latitude"
+    id: latitude_text
+    mode: text
+    optimistic: true
+    web_server:
+      sorting_group_id: location_group
+      sorting_weight: 10
+    on_value:
+      then:
+        - lambda: |-
+            float lat = 0.0;
+            if (sscanf(x.c_str(), "%f", &lat) == 1) {
+              if (lat >= -90.0 && lat <= 90.0) {
+                id(latitude_value) = lat;
+                id(sun_component).set_latitude(lat);
+                id(next_sunrise_sensor).update();
+                id(next_sunset_sensor).update();
+                id(relay_on_time_sensor).update();
+                id(relay_off_time_sensor).update();
+                id(sun_control_status).update();
+              }
+            }
+  # Input for Longitude
+  - platform: template
+    name: "Longitude"
+    id: longitude_text
+    mode: text
+    optimistic: true
+    web_server:
+      sorting_group_id: location_group
+      sorting_weight: 20
+    on_value:
+      then:
+        - lambda: |-
+            float lon = 0.0;
+            if (sscanf(x.c_str(), "%f", &lon) == 1) {
+              if (lon >= -180.0 && lon <= 180.0) {
+                id(longitude_value) = lon;
+                id(sun_component).set_longitude(lon);
+                id(next_sunrise_sensor).update();
+                id(next_sunset_sensor).update();
+                id(relay_on_time_sensor).update();
+                id(relay_off_time_sensor).update();
+                id(sun_control_status).update();
+              }
+            }
+  # Input for new Wi-Fi SSID
+  - platform: template
+    name: "New Wi-Fi SSID"
+    id: ssid_text_input
+    mode: text
+    optimistic: true
+    initial_value: 'New SSID'
+    web_server:
+      sorting_group_id: wifi_group
+      sorting_weight: 10
+    on_value:
+      then:
+        - lambda: 'id(new_ssid) = x;'
+  # Input for new Wi-Fi Password
+  - platform: template
+    name: "New Wi-Fi Password"
+    id: password_text_input
+    mode: password
+    optimistic: true
+    web_server:
+      sorting_group_id: wifi_group
+      sorting_weight: 20
+    on_value:
+      then:
+        - lambda: 'id(new_password) = x;'
+  # Input for manually setting the date and time
+  - platform: template
+    name: "Set Local Time (YYYY-MM-DD HH:MM)"
+    id: manual_datetime_text
+    mode: text
+    initial_value: '2025-01-01 12:00'
+    optimistic: true
+    web_server:
+      sorting_group_id: time_group
+      sorting_weight: 5
+  # Input for the light timer duration in seconds
+  - platform: template
+    name: "Light On Duration"
+    id: light_on_duration
+    optimistic: true
+    mode: text
+    pattern: "[0-9]+"
+    web_server:
+      sorting_group_id: control_group
+      sorting_weight: 15
+    on_value:
+      then:
+        - lambda: |-
+            int duration = 0;
+            if (sscanf(x.c_str(), "%d", &duration) == 1) {
+              if (duration > 0) {
+                id(light_on_duration_seconds) = duration;
+                id(light_on_duration_display).publish_state(to_string(duration) + " s");
+                ESP_LOGD("main", "Light On Duration updated to %d seconds", duration);
+              }
+            }
+
+# Number input entities (sliders) for the web UI
+number:
+  # Input for UTC offset
+  - platform: template
+    name: "UTC Offset Hours"
+    id: utc_offset_number
+    optimistic: true
+    min_value: -12
+    max_value: 14
+    step: 0.5
+    web_server:
+      sorting_group_id: location_group
+      sorting_weight: 30
+    on_value:
+      then:
+        - lambda: |-
+            id(utc_offset) = x;
+            id(current_time_sensor).update();
+            id(next_sunrise_sensor).update();
+            id(next_sunset_sensor).update();
+            id(relay_on_time_sensor).update();
+            id(relay_off_time_sensor).update();
+  # Input for sunrise offset
+  - platform: template
+    name: "Sunrise Offset Hours"
+    id: sunrise_offset
+    optimistic: true
+    min_value: -3
+    max_value: 3
+    step: 0.5
+    web_server:
+      sorting_group_id: location_group
+      sorting_weight: 40
+    on_value:
+      then:
+        - lambda: |-
+            id(sunrise_offset_hours) = x;
+            id(relay_off_time_sensor).update();
+  # Input for sunset offset
+  - platform: template
+    name: "Sunset Offset Hours"
+    id: sunset_offset
+    optimistic: true
+    min_value: -3
+    max_value: 3
+    step: 0.5
+    web_server:
+      sorting_group_id: location_group
+      sorting_weight: 50
+    on_value:
+      then:
+        - lambda: |-
+            id(sunset_offset_hours) = x;
+            id(relay_on_time_sensor).update();
+
+# Select entity (dropdown) for choosing the operation mode
+select:
+  - platform: template
+    name: "Operation Mode"
+    id: operation_mode_select 
+    optimistic: true
+    web_server:
+      sorting_group_id: control_group
+      sorting_weight: 2
+    options:
+      - "Sun Relay Only"
+      - "Sun Relay with Timer"
+      - "Timer only"
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGI("main", "Operation mode changed to: %s", x.c_str());
+            id(g_operation_mode) = x;
+            
+            // Instantly re-calculate the day/night state and update the global
+            auto daytime_opt = is_daytime(id(sntp_time), id(sun_component));
+            if (daytime_opt.has_value()) {
+              id(g_is_daytime) = daytime_opt.value();
+            }
+
+            if (x == "Sun Relay with Timer" || x == "Timer only") {
+              // In Timer modes, relay should be off by default
+              if (id(relay).state) id(relay).turn_off();
+            } else {
+              // In Sun Relay mode, immediately apply the sun logic
+              if (id(g_is_daytime)) { // Day
+                if (id(relay).state) id(relay).turn_off();
+              } else { // Night
+                if (!id(relay).state) id(relay).turn_on();
+              }
+            }
+        - script.execute: update_status_script
+
+
+# Informational numeric sensors
+sensor:
+  # Wi-Fi signal strength
+  - platform: wifi_signal
+    name: "WiFi RSSI"
+    id: wifi_rssi
+    update_interval: 10s
+    web_server:
+      sorting_group_id: wifi_group
+      sorting_weight: 1
+
+# Informational text sensors
+text_sensor:
+  # Displays the current time with UTC offset applied
+  - platform: template
+    name: "Current Time"
+    id: current_time_sensor
+    update_interval: 1s
+    web_server:
+      sorting_group_id: time_group
+      sorting_weight: 10
+    lambda: |-
+      auto utc_now = id(sntp_time).utcnow();
+      if (utc_now.is_valid()) {
+        int total_minutes = (utc_now.hour * 60 + utc_now.minute) + (int)(id(utc_offset) * 60);
+        
+        while (total_minutes >= 1440) total_minutes -= 1440;
+        while (total_minutes < 0) total_minutes += 1440;
+        
+        char str[32];
+        snprintf(str, sizeof(str), "%04d-%02d-%02d %02d:%02d:%02d", 
+                 utc_now.year, utc_now.month, utc_now.day_of_month,
+                 total_minutes / 60, total_minutes % 60, utc_now.second);
+        return {str};
+      }
+      return {"Time unavailable"};
+  # Displays the current time source
+  - platform: template
+    name: "Time Source"
+    id: time_source_sensor
+    update_interval: never
+    web_server:
+      sorting_group_id: time_group
+      sorting_weight: 20
+    lambda: |-
+      return id(g_time_source);
+  # Displays the time of the next sunrise
+  - platform: template
+    name: "Next Sunrise"
+    id: next_sunrise_sensor
+    update_interval: 10s
+    web_server:
+      sorting_group_id: time_group
+      sorting_weight: 30
+    lambda: |-
+      auto sunrise_utc_opt = id(sun_component).sunrise(-0.833);
+      if (sunrise_utc_opt.has_value()) {
+        ESPTime event_utc = sunrise_utc_opt.value();
+        int total_minutes = (event_utc.hour * 60 + event_utc.minute) + (int)(id(utc_offset) * 60);
+        
+        while (total_minutes >= 1440) total_minutes -= 1440;
+        while (total_minutes < 0) total_minutes += 1440;
+        
+        char buffer[16];
+        snprintf(buffer, sizeof(buffer), "%02d:%02d:%02d",
+                 total_minutes / 60, total_minutes % 60, event_utc.second);
+        return {buffer};
+      }
+      return {"Unknown"};
+  # Displays the time of the next sunset
+  - platform: template
+    name: "Next Sunset"
+    id: next_sunset_sensor
+    update_interval: 10s
+    web_server:
+      sorting_group_id: time_group
+      sorting_weight: 40
+    lambda: |-
+      auto sunset_utc_opt = id(sun_component).sunset(-0.833);
+      if (sunset_utc_opt.has_value()) {
+        ESPTime event_utc = sunset_utc_opt.value();
+        int total_minutes = (event_utc.hour * 60 + event_utc.minute) + (int)(id(utc_offset) * 60);
+        
+        while (total_minutes >= 1440) total_minutes -= 1440;
+        while (total_minutes < 0) total_minutes += 1440;
+        
+        char buffer[16];
+        snprintf(buffer, sizeof(buffer), "%02d:%02d:%02d",
+                 total_minutes / 60, total_minutes % 60, event_utc.second);
+        return {buffer};
+      }
+      return {"Unknown"};
+  # Displays the currently configured timer duration
+  - platform: template
+    name: "Current Timeout"
+    id: light_on_duration_display
+    web_server:
+      sorting_group_id: control_group 
+      sorting_weight: 16 
+    lambda: |-
+      return {to_string(id(light_on_duration_seconds)) + " s"};
+    update_interval: never
+  # Displays the calculated relay ON time (sunset + offset)
+  - platform: template
+    name: "Relay ON Time (Today/Tomorrow)"
+    id: relay_on_time_sensor
+    update_interval: 10s
+    web_server:
+      sorting_group_id: control_group
+      sorting_weight: 50
+    lambda: |-
+      auto sunset_utc_opt = id(sun_component).sunset(-0.833);
+      if (sunset_utc_opt.has_value()) {
+        ESPTime event_utc = sunset_utc_opt.value();
+        auto now_utc = id(sntp_time).utcnow();
+        if (!now_utc.is_valid()) { return {"Time Invalid"}; }
+
+        long event_abs_minutes_utc = (event_utc.day_of_year - 1) * 1440 + event_utc.hour * 60 + event_utc.minute;
+        long now_abs_minutes_utc = (now_utc.day_of_year - 1) * 1440 + now_utc.hour * 60 + now_utc.minute;
+        long event_abs_minutes_local = event_abs_minutes_utc + (long)((id(utc_offset) + id(sunset_offset_hours)) * 60);
+        long now_abs_minutes_local = now_abs_minutes_utc + (long)(id(utc_offset) * 60);
+        long event_day_number = event_abs_minutes_local / 1440;
+        long now_day_number = now_abs_minutes_local / 1440;
+
+        const char* day_str;
+        if (event_day_number == now_day_number) { day_str = "Today";
+        } else if (event_day_number > now_day_number) { day_str = "Tomorrow";
+        } else { day_str = "Yesterday"; }
+        
+        int display_minutes_of_day = event_abs_minutes_local % 1440;
+        if (display_minutes_of_day < 0) display_minutes_of_day += 1440;
+
+        char buffer[32];
+        snprintf(buffer, sizeof(buffer), "%s %02d:%02d:%02d",
+                 day_str, display_minutes_of_day / 60, display_minutes_of_day % 60, event_utc.second);
+        return {buffer};
+      }
+      return {"Unknown"};
+  # Displays the calculated relay OFF time (sunrise + offset)
+  - platform: template
+    name: "Relay OFF Time (Today/Tomorrow)"
+    id: relay_off_time_sensor
+    update_interval: 10s
+    web_server:
+      sorting_group_id: control_group
+      sorting_weight: 60
+    lambda: |-
+      auto sunrise_utc_opt = id(sun_component).sunrise(-0.833);
+      if (sunrise_utc_opt.has_value()) {
+        ESPTime event_utc = sunrise_utc_opt.value();
+        auto now_utc = id(sntp_time).utcnow();
+        if (!now_utc.is_valid()) { return {"Time Invalid"}; }
+
+        long event_abs_minutes_utc = (event_utc.day_of_year - 1) * 1440 + event_utc.hour * 60 + event_utc.minute;
+        long now_abs_minutes_utc = (now_utc.day_of_year - 1) * 1440 + now_utc.hour * 60 + now_utc.minute;
+        long event_abs_minutes_local = event_abs_minutes_utc + (long)((id(utc_offset) + id(sunrise_offset_hours)) * 60);
+        long now_abs_minutes_local = now_abs_minutes_utc + (long)(id(utc_offset) * 60);
+        long event_day_number = event_abs_minutes_local / 1440;
+        long now_day_number = now_abs_minutes_local / 1440;
+        
+        const char* day_str;
+        if (event_day_number == now_day_number) { day_str = "Today";
+        } else if (event_day_number > now_day_number) { day_str = "Tomorrow";
+        } else { day_str = "Yesterday"; }
+        
+        int display_minutes_of_day = event_abs_minutes_local % 1440;
+        if (display_minutes_of_day < 0) display_minutes_of_day += 1440;
+
+        char buffer[32];
+        snprintf(buffer, sizeof(buffer), "%s %02d:%02d:%02d",
+                 day_str, display_minutes_of_day / 60, display_minutes_of_day % 60, event_utc.second);
+        return {buffer};
+      }
+      return {"Unknown"};
+  # The main status sensor, updated programmatically by scripts
+  - platform: template
+    name: "💡Control Status" 
+    id: sun_control_status
+    update_interval: never
+    web_server:
+      sorting_group_id: control_group
+      sorting_weight: 30
+    lambda: |-
+      // This lambda only runs on boot or manual update, it's a fallback
+      if (id(g_alarm_mode_active)) {
+        return {"⚠️ ALARM: BUTTON/RELAY STUCK! ⚠️"}; 
+      }
+      if (id(g_operation_mode) == "Sun Relay with Timer") {
+        return {id(g_is_daytime) ? "☀️ Day: Operation Stop" : "Waiting for Button press"}; 
+      } else if (id(g_operation_mode) == "Timer only") {
+        return {"Waiting for Button press"};
+      } else {
+        if (id(g_is_daytime)) { return {"☀️ Day: Light is OFF"}; }
+        else { return {"🌙 Night: Light is ON"}; }
+      }
+
+# Sun component for calculating sunrise and sunset
+sun:
+  id: sun_component
+  latitude: 37.2469
+  longitude: -1.8682
+
+# Timed automations
+interval:
+  # Once per minute: The main day/night state calculator
+  - interval: 1min
+    then:
+      - lambda: |-
+          auto daytime_opt = is_daytime(id(sntp_time), id(sun_component));
+          if (daytime_opt.has_value()) {
+            id(g_is_daytime) = daytime_opt.value();
+          } else {
+            id(g_is_daytime) = false; // Safe default is "night"
+          }
+  # Every 10 seconds: Reacts to the day/night state for the "Sun Relay Only" mode
+  - interval: 10s
+    then:
+      - lambda: |-
+          setenv("TZ", "UTC0", 1);
+          tzset();
+          if (!id(auto_mode_switch).state) {
+            return;
+          }
+
+          if (id(g_operation_mode) == "Sun Relay Only") {
+            bool should_be_on = !id(g_is_daytime);
+            if (should_be_on && !id(relay).state) {
+              id(relay).turn_on();
+            } else if (!should_be_on && id(relay).state) {
+              id(relay).turn_off();
+            }
+          } 
+          else if (id(g_operation_mode) == "Sun Relay with Timer") {
+            // In timer mode, this interval's only job is to turn off the light at sunrise
+            if (id(g_is_daytime) && id(relay).state) {
+              id(relay).turn_off();
+            }
+          }
+  # Every hour: Syncs time from RTC if Wi-Fi is disconnected
+  - interval: 1h 
+    then:
+      - if:
+          condition:
+            lambda: 'return !network::is_connected();'
+          then:
+            - if:
+                condition:
+                  lambda: 'return id(g_rtc_present);'
+                then:
+                  - lambda: 'ESP_LOGD("rtc_sync", "No WiFi. Performing hourly sync with RTC.");'
+                  - ds1307.read_time:
+                  - lambda: |-
+                      setenv("TZ", "UTC0", 1);
+                      tzset();
+                      id(g_time_source) = "RTC";
+                      id(time_source_sensor).publish_state("RTC");
+  # Every hour: Syncs time from SNTP if Wi-Fi is connected
+  - interval: 1h 
+    then:
+      - if:
+          condition:
+            wifi.connected:
+          then:
+            - lambda: 'ESP_LOGD("sntp_sync", "Performing periodic SNTP time sync.");'
+            - component.update: sntp_time
+            - lambda: |-
+                setenv("TZ", "UTC0", 1);
+                tzset();
+                id(g_time_source) = "SNTP";
+                id(time_source_sensor).publish_state("SNTP");
+  # Every 30 seconds: Manages the alarm mode logic
+  - interval: 30s
+    then:
+      - lambda: |-
+          if (id(g_alarm_mode_active)) {
+            if (id(corridor_button).state) {
+              // Button is still stuck, execute the alarm blink
+              ESP_LOGD("alarm", "Button still stuck, executing alarm cycle.");
+              id(alarm_cycle_script).execute();
+            }
+          }
+
+# Reusable blocks of actions (scripts)
+script:
+  # Script 1: The main light timer countdown using a while-loop
+  - id: light_timer_script
+    mode: single
+    then:
+      # Initialization
+      - switch.turn_on: relay
+      - lambda: id(g_countdown_seconds) = id(light_on_duration_seconds);
+      - lambda: |-
+          char buffer[32];
+          snprintf(buffer, sizeof(buffer), "Countdown: %ds ⏱️", id(g_countdown_seconds));
+          id(sun_control_status).publish_state(buffer);
+      # Main countdown loop
+      - while:
+          condition:
+            lambda: 'return id(g_countdown_seconds) > 0;'
+          then:
+            - delay: 1s
+            - lambda: id(g_countdown_seconds)--;
+            - lambda: |-
+                char buffer[32];
+                snprintf(buffer, sizeof(buffer), "Countdown: %ds ⏱️", id(g_countdown_seconds));
+                id(sun_control_status).publish_state(buffer);
+      # Actions after the loop finishes
+      - switch.turn_off: relay
+      - lambda: id(sun_control_status).publish_state("Checking if stuck...");
+      - wait_until:
+          condition:
+            binary_sensor.is_off: corridor_button
+          timeout: 500ms
+      - if:
+          condition:
+            binary_sensor.is_on: corridor_button
+          then:
+            # Enters alarm mode if button is still pressed
+            - lambda: |-
+                id(sun_control_status).publish_state("⚠️ ALARM: BUTTON/RELAY STUCK! ⚠️");
+                id(g_alarm_mode_active) = true;
+          else:
+            # Normal completion, update status
+            - script.execute: update_status_script
+  # Script 2: A simple 2-second blink for the alarm
+  - id: alarm_cycle_script
+    mode: single
+    then:
+      - lambda: 'ESP_LOGD("alarm", "Executing alarm cycle: ON for 2s.");'
+      - switch.turn_on: relay
+      - delay: 2s
+      - switch.turn_off: relay
+  # Script 3: A central function to update the status sensor display
+  - id: update_status_script
+    mode: single
+    then:
+      - lambda: |-
+          if (id(g_alarm_mode_active)) {
+            id(sun_control_status).publish_state("⚠️ ALARM: BUTTON/RELAY STUCK! ⚠️");
+            return;
+          }
+          if (id(g_operation_mode) == "Sun Relay with Timer") {
+            id(sun_control_status).publish_state(id(g_is_daytime) ? "☀️ Day: Operation Stop" : "Waiting for Button press");
+          } else if (id(g_operation_mode) == "Timer only") {
+            id(sun_control_status).publish_state("Waiting for Button press");
+          } else {
+            if (id(g_is_daytime)) {
+              id(sun_control_status).publish_state("☀️ Day: Light is OFF");
+            } else {
+              id(sun_control_status).publish_state("🌙 Night: Light is ON");
+            }
+          }
+
+# Push-button entities for the web UI
+button:
+  # Button to apply manually entered time
+  - platform: template
+    name: "Apply Time"
+    web_server:
+      sorting_group_id: time_group
+      sorting_weight: 8
+    on_press:
+      then:
+        - lambda: |-
+            const char *datetime_str = id(manual_datetime_text).state.c_str();
+            struct tm timeinfo;
+            if (strptime(datetime_str, "%Y-%m-%d %H:%M", &timeinfo) != nullptr) {
+              timeinfo.tm_sec = 0;
+              time_t epoch = mktime(&timeinfo);
+              
+              if (epoch != -1) {
+                int offset_seconds = id(utc_offset) * 3600;
+                time_t corrected_epoch = epoch - offset_seconds;
+                struct timeval tv;
+                tv.tv_sec = corrected_epoch;
+                tv.tv_usec = 0;
+                settimeofday(&tv, nullptr);
+                id(g_time_source) = "Manual";
+                id(time_source_sensor).publish_state("Manual");
+              }
+            }
+        - delay: 100ms
+        - if:
+            condition:
+              lambda: 'return id(g_rtc_present);'
+            then:
+              - ds1307.write_time:
+                  id: rtc_time
+              - lambda: 'ESP_LOGI("main", "New time written to DS1307 RTC.");'
+  # Button to restart the device
+  - platform: restart
+    name: "Restart Device"
+    web_server:
+      sorting_group_id: control_group
+      sorting_weight: 80
+  # Button to force-update all template sensors
+  - platform: template
+    name: "Force Update All Sensors"
+    web_server:
+      sorting_group_id: control_group
+      sorting_weight: 70
+    on_press:
+      then:
+        - lambda: |-
+            id(current_time_sensor).update();
+            id(next_sunrise_sensor).update();
+            id(next_sunset_sensor).update();
+            id(relay_on_time_sensor).update();
+            id(relay_off_time_sensor).update();
+            id(sun_control_status).update();
+  # Button to save and connect to a new Wi-Fi network
+  - platform: template
+    name: "Save and connect to new Wifi"
+    web_server:
+      sorting_group_id: wifi_group
+      sorting_weight: 30
+    on_press:
+      then:
+        - wifi.configure:
+            ssid: !lambda 'return id(new_ssid);'
+            password: !lambda 'return id(new_password);'
+            save: true
+            timeout: 30s
+        - delay: 1s
+  # Button to factory reset the device (clears Wi-Fi and restored globals)
+  - platform: factory_reset
+    name: "Factory Reset"
+    web_server:
+      sorting_group_id: control_group
+      sorting_weight: 90
+
+# Required for some system libraries, can be left empty
+http_request:
+  useragent: esphome/device
+  timeout: 10s
+  verify_ssl: false
