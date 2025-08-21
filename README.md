@@ -1,4 +1,4 @@
-# [🇺🇦Українська версія](https://www.google.com/search?q=%23-esphome-standalone-smart-sun-relay-1)
+# [🇺🇦 Українська версія](https://www.google.com/search?q=%23-esphome-standalone-smart-sun-relay-1)
 
 # ESPHome Standalone Smart Sun Relay
 
