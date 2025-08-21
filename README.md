@@ -1,4 +1,4 @@
-# [🇺🇦 Українська версія](-esphome-standalone-smart-sun-relay-1)
+# [🇺🇦 Українська версія](#esphome-standalone-smart-sun-relay-1)
 
 # ESPHome Standalone Smart Sun Relay
 
