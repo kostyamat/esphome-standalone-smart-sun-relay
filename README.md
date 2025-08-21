@@ -15,10 +15,10 @@ An advanced controller for managing lighting (or any other load) based on ESP826
 
 <div style="text-align: center;">
   <span style="display: inline-block; vertical-align: top; width: 30%;">
-    <img src="/docs/ha-interface.png" style="width: 100%;">
+    <img src="/docs/ha-interface.png" style="width: 30%;">
   </span>
   <span style="display: inline-block; vertical-align: top; width: 30%;">
-    <img src="/docs/ha-interface-.png" style="width: 100%;">
+    <img src="/docs/ha-interface-.png" style="width: 30%;">
   </span>
 </div>
 
