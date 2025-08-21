@@ -11,6 +11,8 @@ An advanced controller for managing lighting (or any other load) based on ESP826
   <img src="/docs/webinterface.jpg" width="45%" />
   <img src="/docs/webinterface-.jpg" width="45%" />
   <img src="/docs/webinterface--.jpg" width="45%" />
+</p>
+<p align="center">
   <img src="/docs/ha-interface.png" width="45%" />
   <img src="/docs/ha-interface-.png" width="45%" />
 </p>
