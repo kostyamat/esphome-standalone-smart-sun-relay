@@ -146,7 +146,7 @@ After adding the device to Home Assistant, a special service for controlling the
     ```bash
     esphome run sun-relay.yaml
     ```
-
+# [User guide](/docs/GUIDE.md)
 -----
 
 -----
@@ -298,3 +298,4 @@ After adding the device to Home Assistant, a special service for controlling the
     ```bash
     esphome run sun-relay.yaml
     ```
+# [User guide](/docs/GUIDE.md)
