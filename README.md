@@ -1,268 +1,310 @@
-# Sun Relay Controller
+````md
+[Українська версія](#-esphome-standalone-smart-sun-relay-1)
 
-![](docs/webinterface.png) ![](docs/webinterface-.png) 
-![](docs/ha-interface.png) ![](docs/ha-interface-.png)
+# ESPHome Standalone Smart Sun Relay
 
-## [🇺🇦 Українська версія](#ukrainian-version)
+[![PlatformIO CI](https://github.com/kostyamat/esphome-standalone-smart-sun-relay/actions/workflows/ci.yaml/badge.svg)](https://github.com/kostyamat/esphome-standalone-smart-sun-relay/actions/workflows/ci.yaml)
+[![GitHub release](https://img.shields.io/github/v/release/kostyamat/esphome-standalone-smart-sun-relay.svg)](https://github.com/kostyamat/esphome-standalone-smart-sun-relay/releases/latest)
+[![License](https://img.shields.io/github/license/kostyamat/esphome-standalone-smart-sun-relay)](./LICENSE)
 
-## What is Sun Relay?
+An advanced controller for managing lighting (or any other load) based on ESP8266 and ESPHome. The device can operate completely standalone or be integrated with Home Assistant. The core logic is based on calculating sunrise and sunset for the current geolocation, but its flexible settings allow it to be used as a multi-functional timer.
 
-Sun Relay is a fully autonomous, smart controller designed to manage lighting based on the daily cycle of the sun. It's an ideal "set it and forget it" solution for:
+![Web Interface Screenshot](https://github.com/kostyamat/esphome-standalone-smart-sun-relay/raw/main/img/web_interface.png)
+*(Note: The screenshot shows a previous version of the UI. The new version includes an additional "Timer only" option in the "Operation Mode" dropdown.)*
 
-* Street and landscape lighting.
-* Entrance and hallway lights in apartment buildings.
-* Any other lighting system that should automatically turn on at night and off during the day.
+## 🚀 Key Features
 
-The core feature of this device is its reliability. It does not require an internet connection or any external servers to perform its main function, thanks to a built-in hardware clock and a robust internal logic.
-
----
-
-## Hardware Setup
-
-### Required Materials
-* An ESP8266-based board (like **Wemos D1 Mini**).
-* A 5V Relay Module.
-* A DS1307 or DS3231 RTC (Real-Time Clock) Module (optional, but highly recommended for offline reliability).
-* Connecting wires.
-
-### Wiring
-
-Connect the components according to the following scheme:
-
-| Wemos D1 Mini Pin | Connects to...                  |
-| :---------------- | :------------------------------ |
-| **5V** | Relay Module `VCC`, RTC `VCC`   |
-| **GND** | Relay Module `GND`, RTC `GND`   |
-| **D1 (SCL)** | RTC Module `SCL`                |
-| **D2 (SDA)** | RTC Module `SDA`                |
-| **D3** | Relay Module `IN` (Input)       |
-
-
+* **Fully Standalone:** Does not require a central server (like Home Assistant) to operate. Management is done through a built-in web interface.
+* **Three Flexible Operation Modes:**
+    1.  `Sun Relay Only`: Fully automatic control based on sunrise/sunset.
+    2.  `Sun Relay with Timer`: A hybrid mode where the timer can be activated at night.
+    3.  `Timer only`: A manual mode where the timer can be activated at any time of day.
+* **Astronomical Calculation:** Automatically determines sunrise and sunset times based on the specified coordinates (latitude and longitude).
+* **RTC Backup Time Source:** Supports the DS1307 RTC module, allowing the device to maintain accurate time even without an internet connection.
+* **Advanced Web Interface:** Allows configuring all parameters on the fly, including:
+    * Geographic coordinates and time zone (UTC).
+    * Offsets for sunrise/sunset times.
+    * Timer duration.
+    * Wi-Fi settings.
+* **Home Assistant Integration:** Provides a service to remotely trigger and restart the timer, enabling complex automations.
+* **Robust Failure Protection:** The system detects a "stuck" physical button and enters an alarm mode. The alarm is deactivated **instantly** upon resolving the issue.
+* **OTA Updates:** Supports over-the-air firmware updates via ESPHome or the web interface.
 
 ---
 
-## First-Time Setup & Configuration
+## ⚙️ Operation Modes
 
-The device is managed entirely through its web interface.
+The device supports three modes, which can be switched via the web interface.
 
-### 1. First Boot & Wi-Fi Provisioning
-After flashing the firmware, the device will not know your Wi-Fi credentials.
-1.  On its first boot, the device will create its own Wi-Fi Access Point named **`sun-relay-MAC`** with the password `12345678`.
-2.  Connect to this network with your phone or laptop.
-3.  Open a web browser and go to `192.168.4.1`.
-4.  You will see the device's web interface. Use the **"WiFi control"** section to enter your home Wi-Fi SSID and password and click **"Save and connect to new Wifi"**.
-5.  The device will restart and connect to your network. Find its new IP address from your router to access the interface again.
+### 1. Sun Relay Only
 
-### 2. Main Configuration
-For the device to work correctly, you must set the following parameters in the web interface:
+This is the basic, fully automatic mode.
 
-* **`Latitude` & `Longitude`**: These are the most critical settings. You must enter the geographic coordinates of the device's location. You can get them from Google Maps or other online services.
-* **`UTC Offset Hours`**: Set your local timezone's offset from UTC. For example, for Central European Summer Time (CEST), this would be `2.0`.
-* **`Set Local Time` (for offline use)**: If the device has no internet, its clock may be incorrect. Enter the current local time in `YYYY-MM-DD HH:MM` format and press **"Apply Time"**. The device will set its internal clock and save it to the RTC for future reboots.
+* The relay **turns ON** at sunset (considering the offset).
+* The relay **turns OFF** at sunrise (considering the offset).
+* The physical button and timer are inactive in this mode.
 
-### 3. Fine-Tuning (Optional)
-* **`Sunrise Offset Hours` & `Sunset Offset Hours`**: These sliders allow you to make the relay switch earlier or later relative to the actual sunrise or sunset. For example, setting the sunset offset to `-0.5` will turn the lights on 30 minutes *before* sunset.
+### 2. Sun Relay with Timer
 
----
+A hybrid mode, ideal for passageways (corridors, stairs) during the night.
 
-## Operating Algorithm
+* **During the day:** The relay is always off.
+* **At night:** The relay is off by default. The light can be turned on for a specified duration (e.g., 60 seconds) by pressing the physical button or calling the Home Assistant service. The light will automatically turn off after the countdown finishes.
 
-The device's logic is simple and reliable:
+### 3. Timer only
 
-1.  Based on its coordinates and the current time, the controller calculates the astronomical sunrise and sunset times.
-2.  The core rule is: **the relay is ON during the night and OFF during the day.**
-3.  For safety, the device always turns the relay **ON** immediately after booting. This ensures that a brief power outage at night will not leave the area in darkness. The device will then correct its state within seconds based on the sun's position.
+A fully manual mode that ignores sunrise and sunset times.
+
+* The relay is always off by default.
+* The light can be turned on for a specified duration **at any time of day** by pressing the physical button or calling the Home Assistant service.
 
 ---
 
-## Technical Features & Implementation Details
+## 🔌 Home Assistant Integration
 
-This firmware is built to be exceptionally robust by using several advanced techniques to overcome common ESPHome limitations.
+After adding the device to Home Assistant, a special service for controlling the timer becomes available.
 
-* **Hybrid Time System:** The device uses a three-tiered time system for maximum reliability:
-    1.  **SNTP:** The primary source when online, providing perfect accuracy.
-    2.  **DS1307/DS3231 RTC:** The hardware backup. Time is automatically synced from SNTP to the RTC. On boot, time is read from the RTC to ensure the device has a valid time even before Wi-Fi connects.
-    3.  **Manual Set:** A user-friendly override for fully offline environments.
+**Service:** `esphome.<device_name>_button_press`
 
-* **UTC Core Principle:** All internal logic and time storage (in the RTC) is done strictly in **UTC**. This avoids all ambiguity related to local time and Daylight Saving changes. User-facing times are converted to local time for display only.
+**Capabilities:**
 
-* **"Hacks" for Reliability:**
-    * **Forced UTC Environment:** An `on_boot` script forces the ESP8266's low-level C-library to a UTC timezone (`setenv("TZ", "UTC0", 1)`). This is a critical fix that ensures the `sun` component calculates its values in UTC, preventing a common source of bugs.
-    * **Robust Hardware Handling:** The firmware automatically detects if an RTC module is present and working (`is_failed()` check). If not, it operates without it and without generating errors. It also validates the time read from the RTC to protect against data corruption.
-    * **Factory Reset Recovery:** A "magic flag" (`is_configured_flag`) in persistent memory ensures that after a full device reset, all settings are gracefully restored to safe, pre-defined defaults.
+* **Start Timer:** Activates the timer just like the physical button.
+* **Restart Timer:** If the timer is already running, calling this service will **restart** the countdown from the beginning.
 
-* **A Note on `#include` Directives:** This code intentionally avoids using top-level `includes:` for standard C libraries like `<time.h>`. These are already part of the ESPHome build framework, and including them again can cause compilation conflicts. This directive should be reserved for external, custom C++ header files.
+**Service Logic:**
 
-## Home Assistant Integration
+* In `Sun Relay with Timer` mode: Will only work **at night**.
+* In `Timer only` mode: Will work **at any time of day**.
+* In `Sun Relay Only` mode: The service call will be ignored.
 
-### Automatic Discovery
-If you are using the ESPHome integration, the device will be automatically discovered by your Home Assistant instance. All controls and sensors from the web interface will appear as corresponding entities.
+**Example Automation in Home Assistant (automation.yaml):**
 
-**Note:** For this to work, the `api:` section in the `sun-relay.yaml` file must be enabled.
+```yaml
+- alias: "Activate corridor light when motion detected at night"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.motion_detector
+      to: 'on'
+  action:
+    - service: esphome.sun_lights_controller_button_press
+````
 
-### Philosophy of Autonomy
-The key idea behind this project is **reliability and full autonomy**. The device does not depend on Home Assistant to perform its primary task. Even if your Home Assistant server is offline, this controller will continue to switch the lights on and off perfectly according to the sunrise and sunset schedule.
+-----
 
-### Role in Home Assistant: A Rich Data Source
-Because of its autonomous nature, the device's core sun-tracking logic is not controlled by Home Assistant. Instead, it serves as a **rich data source and sensor platform**, providing your smart home with precise and reliable astronomical data.
+## 🖥️ Web Interface Controls
 
-You will get a suite of useful entities, including:
-* **Astronomical Events:** `sensor.next_sunrise` and `sensor.next_sunset`.
-* **Calculated Relay Times:** `sensor.relay_on_time` and `sensor.relay_off_time`, which include any user-defined offsets.
-* **Device Status:** `switch.sun_relay` (for monitoring and manual override), `sensor.time_source`, and `sensor.wifi_signal`.
+### Time & Sources
 
-This allows you, for example, to trigger other automations (like closing blinds or changing indoor lighting) based on the data from this device, which can be more reliable and customized than HA's built-in sun integration.
+  * **Current Time:** The device's current time, considering the UTC offset.
+  * **Time Source:** The source of time (SNTP, RTC, Manual).
+  * **Next Sunrise/Sunset:** The calculated time for the next sunrise/sunset.
+  * **Set Local Time:** A field for manually setting the date and time.
 
-## Daylight Saving Time (DST) & The Role of Offsets
+### Location & Offset
 
-This device is designed to be completely immune to errors related to seasonal time changes. This is achieved by a strict separation between the device's internal logic and the user display.
+  * **Latitude / Longitude:** Geographic coordinates for sun calculations.
+  * **UTC Offset Hours:** The offset of your time zone from UTC.
+  * **Sunrise/Sunset Offset Hours:** An additional offset in hours to fine-tune the relay's ON/OFF times.
 
-* **Control Logic:** The device's core logic—when the relay actually turns on and off—is based **only** on the true astronomical sunrise and sunset in UTC. This internal schedule is stable and never changes. The small `Sunrise/Sunset Offset Hours` sliders allow you to fine-tune this schedule directly.
+### Control
 
-* **Display Logic:** The main **`UTC Offset Hours`** slider has **no effect on the relay's switching logic**. Its sole purpose is to provide a convenient local time display in the web interface.
+  * **Operation Mode:** Select one of the three operation modes.
+  * **Auto Mode:** A master switch for all automations.
+  * **Relay:** Manual control of the relay state.
+  * **Light On Duration:** Sets the timer duration in seconds.
+  * **💡Control Status:** An informational sensor showing the current system status (e.g., "🌙 Night: Light is ON" or "Countdown: 45s ⏱️").
 
-**User intervention is not required for the device to function correctly.** You only need to adjust the `UTC Offset Hours` slider if you want the displayed times (like "Current Time" or "Next Sunrise") to match your local wall clock. This is typically done twice a year when DST starts or ends.
+### WiFi control
 
+  * **New Wi-Fi SSID / Password:** Fields for changing the Wi-Fi network without re-flashing the device.
 
+-----
 
+## 🛠️ Hardware
 
-## License
+  * **Microcontroller:** Wemos D1 Mini (or any other ESP8266-based board).
+  * **Relay:** A standard relay module for Arduino/ESP.
+  * **Button:** Any non-latching tactile button.
+  * **(Optional) RTC Module:** DS1307 Real-Time Clock.
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+**Connections:**
 
-## Contributing
+  * Relay: `D3`
+  * Button: `D6`
+  * DS1307 SDA: `D2`
+  * DS1307 SCL: `D1`
 
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+## 📚 Dependencies
 
-<br>
----
-<a name="ukrainian-version"></a>
+  * **ESPHome:** Version 2023.8.0 or newer.
+  * **(Optional) Home Assistant:** To use the remote control service.
 
-## Українська версія
+## 📦 Installation
 
-## [English Version](#top)
+1.  Place the `sun-relay.yaml` and the required `sun_functions.h` file in your ESPHome configuration directory.
 
-## Що таке Sun Relay?
+2.  Create a `secrets.yaml` file to add your Wi-Fi credentials.
 
-Sun Relay — це повністю автономний, розумний контролер, призначений для керування освітленням на основі добового циклу сонця. Це ідеальне рішення формату "налаштував і забув" для:
+3.  Compile and upload the firmware to your device.
 
-* Вуличних та ландшафтних ліхтарів.
-* Освітлення у під'їздах та на сходових клітках багатоквартирних будинків.
-* Будь-яких інших систем освітлення, які мають автоматично вмикатися вночі та вимикатися вдень.
+    ```bash
+    esphome run sun-relay.yaml
+    ```
 
-Ключова риса цього пристрою — його надійність. Він не потребує підключення до Інтернету чи будь-яких зовнішніх серверів для виконання своєї основної функції, завдяки вбудованому апаратному годиннику та надійній внутрішній логіці.
+-----
 
----
+-----
 
-## Налаштування "заліза"
+# ESPHome Standalone Smart Sun Relay
 
-### Необхідні матеріали
-* Плата на базі ESP8266 (наприклад, **Wemos D1 Mini**).
-* Модуль реле на 5В.
-* Модуль RTC (годинника реального часу) DS1307 або DS3231 (опціонально, але наполегливо рекомендується для надійності в офлайн-режимі).
-* З'єднувальні дроти.
+[](https://www.google.com/url?sa=E&source=gmail&q=https://github.com/kostyamat/esphome-standalone-smart-sun-relay/actions/workflows/ci.yaml)
+[](https://www.google.com/url?sa=E&source=gmail&q=https://github.com/kostyamat/esphome-standalone-smart-sun-relay/releases/latest)
+[](https://www.google.com/search?q=./LICENSE)
 
-### Схема підключення
+Просунутий контролер для керування освітленням (або будь-яким іншим навантаженням) на базі ESP8266 та ESPHome. Пристрій може працювати як повністю автономно, так і в інтеграції з Home Assistant. Основна логіка базується на розрахунку сходу та заходу сонця для поточної геолокації, але гнучкі налаштування дозволяють використовувати його як багатофункціональний таймер.
 
-З'єднайте компоненти згідно з наступною схемою:
+*(Примітка: На скріншоті показана попередня версія інтерфейсу. Нова версія містить додатковий режим "Timer only" у списку "Operation Mode".)*
 
-| Пін Wemos D1 Mini | Підключається до...             |
-| :---------------- | :------------------------------ |
-| **5V** | Модуль реле `VCC`, RTC `VCC`    |
-| **GND** | Модуль реле `GND`, RTC `GND`    |
-| **D1 (SCL)** | Модуль RTC `SCL`                |
-| **D2 (SDA)** | Модуль RTC `SDA`                |
-| **D3** | Модуль реле `IN` (вхід)         |
+## 🚀 Ключові можливості
 
+  * **Повністю автономний:** Не потребує центрального сервера (як Home Assistant) для роботи. Керування здійснюється через вбудований веб-інтерфейс.
+  * **Три гнучкі режими роботи:**
+    1.  `Sun Relay Only`: Повністю автоматичне керування на основі сходу/заходу сонця.
+    2.  `Sun Relay with Timer`: Гібридний режим, де таймер можна активувати вночі.
+    3.  `Timer only`: Ручний режим, де таймер можна активувати в будь-який час доби.
+  * **Астрономічний розрахунок:** Автоматично визначає час сходу та заходу сонця на основі вказаних координат (широти та довготи).
+  * **Резервне джерело часу (RTC):** Підтримує модуль DS1307 RTC, що дозволяє пристрою зберігати точний час навіть за відсутності підключення до Інтернету.
+  * **Розширений веб-інтерфейс:** Дозволяє налаштовувати всі параметри "на льоту", включаючи:
+      * Географічні координати та часовий пояс (UTC).
+      * Зміщення для часу сходу/заходу сонця.
+      * Тривалість таймера.
+      * Налаштування Wi-Fi.
+  * **Інтеграція з Home Assistant:** Надає сервіс для дистанційного запуску/перезапуску таймера, що дозволяє створювати складні автоматизації.
+  * **Надійний захист від збоїв:** Система виявляє "залипання" фізичної кнопки та переходить у режим тривоги. Скасування тривоги відбувається **миттєво** після усунення проблеми.
+  * **OTA Оновлення:** Підтримка оновлення прошивки "по повітрю" через ESPHome або веб-інтерфейс.
 
+-----
 
----
+## ⚙️ Режими роботи
 
-## Перший запуск та конфігурація
+Пристрій підтримує три режими, які можна перемикати через веб-інтерфейс.
 
-Керування пристроєм повністю здійснюється через його вебінтерфейс.
+### 1\. Sun Relay Only
 
-### 1. Перше завантаження та налаштування Wi-Fi
-Після прошивки пристрій не знатиме даних вашої Wi-Fi мережі.
-1.  При першому запуску пристрій створить власну точку доступу Wi-Fi з назвою **`sun-relay-MAC`** та паролем `12345678`.
-2.  Підключіться до цієї мережі з телефону або ноутбука.
-3.  Відкрийте браузер і перейдіть за адресою `192.168.4.1`.
-4.  Ви побачите вебінтерфейс пристрою. Використовуйте секцію **"WiFi control"**, щоб ввести назву (SSID) та пароль вашої домашньої мережі Wi-Fi і натисніть **"Save and connect to new Wifi"**.
-5.  Пристрій перезавантажиться і підключиться до вашої мережі. Знайдіть його нову IP-адресу у вашому роутері, щоб знову отримати доступ до інтерфейсу.
+Це базовий, повністю автоматичний режим.
 
-### 2. Основні налаштування
-Щоб пристрій працював коректно, ви повинні налаштувати наступні параметри у вебінтерфейсі:
+  * Реле **вмикається** на заходи сонця (з урахуванням зміщення).
+  * Реле **вимикається** на сході сонця (з урахуванням зміщення).
+  * Фізична кнопка та таймер у цьому режимі неактивні.
 
-* **`Latitude` & `Longitude`**: Найважливіші налаштування. Ви повинні ввести географічні координати місця, де встановлено пристрій. Їх можна отримати з Google Maps або інших онлайн-сервісів.
-* **`UTC Offset Hours`**: Встановіть зміщення вашого локального часового поясу відносно UTC. Наприклад, для центральноєвропейського літнього часу (EEST/Київ) це буде `3.0`.
-* **`Set Local Time` (для офлайн-використання)**: Якщо пристрій не має доступу до Інтернету, його годинник може бути неточним. Введіть поточний локальний час у форматі `РРРР-ММ-ДД ГГ:ХХ` та натисніть **"Apply Time"**. Пристрій встановить свій внутрішній годинник і збереже його в RTC для майбутніх перезавантажень.
+### 2\. Sun Relay with Timer
 
-### 3. Тонке налаштування (опціонально)
-* **`Sunrise Offset Hours` & `Sunset Offset Hours`**: Ці повзунки дозволяють вмикати/вимикати реле раніше чи пізніше відносно фактичного сходу чи заходу сонця. Наприклад, встановлення зміщення заходу на `-0.5` увімкне світло за 30 хвилин *до* заходу сонця.
+Гібридний режим, ідеальний для прохідних зон (коридорів, сходів) у нічний час.
 
----
+  * **Вдень:** Реле завжди вимкнене.
+  * **Вночі:** Реле вимкнене за замовчуванням. Світло можна увімкнути на заданий час (наприклад, 60 секунд), натиснувши фізичну кнопку або викликавши сервіс з Home Assistant. Після закінчення зворотного відліку світло автоматично вимкнеться.
 
-## Алгоритм роботи
+### 3\. Timer only
 
-Логіка пристрою проста та надійна:
+Повністю ручний режим, що ігнорує час сходу/заходу сонця.
 
-1.  На основі своїх координат та поточного часу, контролер кожні 10 секунд обчислює астрономічний час сходу та заходу сонця.
-2.  Основне правило: **Реле УВІМКНЕНЕ вночі та ВИМКНЕНЕ вдень.**
-3.  З міркувань безпеки, пристрій завжди **вмикає реле** одразу після завантаження. Це гарантує, що коротке відключення електроенергії вночі не залишить територію в темряві. Пристрій скоригує свій стан протягом кількох секунд відповідно до положення сонця.
+  * Реле завжди вимкнене за замовчуванням.
+  * Світло можна увімкнути на заданий час **у будь-який час доби**, натиснувши фізичну кнопку або викликавши сервіс з Home Assistant.
 
----
+-----
 
-## Технічні особливості та деталі реалізації
+## 🔌 Інтеграція з Home Assistant
 
-Ця прошивка створена надзвичайно надійною завдяки використанню кількох просунутих технік для подолання поширених обмежень ESPHome.
+Після додавання пристрою в Home Assistant стає доступним спеціальний сервіс для керування таймером.
 
-* **Гібридна система часу:** Пристрій використовує трирівневу систему часу для максимальної надійності:
-    1.  **SNTP:** Основне джерело, коли є онлайн, забезпечуючи ідеальну точність.
-    2.  **DS1307/DS3231 RTC:** Апаратний резерв. Час автоматично синхронізується з SNTP в RTC. При завантаженні час зчитується з RTC, щоб пристрій мав валідний час ще до підключення до Wi-Fi.
-    3.  **Ручне налаштування:** Зручний спосіб налаштування для повністю автономних умов.
+**Сервіс:** `esphome.<device_name>_button_press`
 
-* **Принцип UTC Core:** Вся внутрішня логіка та зберігання часу (в RTC) виконуються строго в **UTC**. Це дозволяє уникнути будь-якої неоднозначності, пов'язаної з місцевим часом та літнім/зимовим часом. Час, що відображається користувачеві, конвертується в локальний лише для виводу на екран.
+**Можливості:**
 
-* **"Хаки" для надійності:**
-    * **Примусове UTC-середовище:** Скрипт в `on_boot` примусово встановлює для низькорівневої C-бібліотеки часовий пояс UTC (`setenv("TZ", "UTC0", 1)`). Це критичний фікс, який змушує компонент `sun` розраховувати свої значення в UTC, запобігаючи поширеному джерелу помилок.
-    * **Надійна робота з апаратним забезпеченням:** Прошивка автоматично визначає, чи присутній та чи працює модуль RTC (перевірка `.is_failed()`). Якщо ні, вона працює без нього, не генеруючи помилок. Вона також перевіряє валідність часу, зчитаного з RTC, для захисту від пошкодження даних.
-    * **Відновлення після скидання:** "Магічний прапорець" (`is_configured_flag`) у постійній пам'яті гарантує, що після повного скидання пристрою всі налаштування будуть коректно відновлені до безпечних значень за замовчуванням.
+  * **Запуск таймера:** Активує таймер так само, як і фізична кнопка.
+  * **Перезапуск таймера:** Якщо таймер вже працює, виклик цього сервісу **перезапустить** зворотний відлік з самого початку.
 
-* **Примітка щодо директив `#include`:** Цей код навмисно уникає використання `includes:` верхнього рівня для стандартних бібліотек C, таких як `<time.h>`. Вони вже є частиною фреймворку збірки ESPHome, і їх повторне включення може викликати конфлікти компілятора. Цю директиву слід резервувати для підключення власних кастомних файлів заголовків C++.
+**Логіка роботи сервісу:**
 
-## Інтеграція з Home Assistant
+  * У режимі `Sun Relay with Timer`: Спрацює **тільки вночі**.
+  * У режимі `Timer only`: Спрацює **в будь-який час доби**.
+  * У режимі `Sun Relay Only`: Виклик сервісу буде проігноровано.
 
-### Автоматичне виявлення
-Якщо ви використовуєте інтеграцію ESPHome, пристрій буде автоматично знайдено у вашому Home Assistant. Всі елементи керування та сенсори з вебінтерфейсу з'являться як відповідні сутності (entities).
+**Приклад автоматизації в Home Assistant (automation.yaml):**
 
-**Примітка:** Для того, щоб це працювало, секція `api:` у файлі `sun-relay.yaml` має бути увімкнена (розкоментована).
+```yaml
+- alias: "Activate corridor light when motion detected at night"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.motion_detector
+      to: 'on'
+  action:
+    - service: esphome.sun_lights_controller_button_press
+```
 
-### Філософія автономності
-Ключова ідея цього проєкту — **надійність та повна автономність**. Пристрій не залежить від Home Assistant для виконання свого основного завдання. Навіть якщо ваш сервер Home Assistant вимкнеться, контролер продовжить вмикати та вимикати світло за розкладом сходу/заходу сонця.
+-----
 
-### Роль у Home Assistant: Джерело даних
-Через свою автономну природу, основна логіка пристрою, що відстежує сонце, не керується з Home Assistant. Замість цього, він виступає як **багате джерело даних та платформа сенсорів**, надаючи вашому розумному будинку точні астрономічні дані.
+## 🖥️ Елементи керування у веб-інтерфейсі
 
-Ви отримаєте набір корисних сутностей, серед яких:
-* **Астрономічні події:** `sensor.next_sunrise` та `sensor.next_sunset`.
-* **Розрахований час роботи реле:** `sensor.relay_on_time` та `sensor.relay_off_time`, які враховують будь-які встановлені вами зміщення.
-* **Статус пристрою:** `switch.sun_relay` (для моніторингу та ручного керування), `sensor.time_source` та `sensor.wifi_signal`.
+### Time & Sources
 
-Це дозволяє вам, наприклад, запускати інші автоматизації (як-от закриття штор або зміна освітлення в кімнаті), спираючись на дані з цього пристрою, що може бути надійніше та гнучкіше, ніж вбудована інтеграція сонця в Home Assistant.
+  * **Current Time:** Поточний час пристрою з урахуванням UTC зміщення.
+  * **Time Source:** Джерело часу (SNTP, RTC, Manual).
+  * **Next Sunrise/Sunset:** Розрахунковий час наступного сходу/заходу сонця.
+  * **Set Local Time:** Поле для ручного встановлення дати та часу.
 
-### Літній/зимовий час (DST) та роль зміщень
+### Location & Offset
 
-Цей пристрій розроблений так, щоб бути повністю невразливим до помилок, пов'язаних із сезонною зміною часу. Це досягається завдяки чіткому розділенню внутрішньої логіки пристрою та інтерфейсу користувача.
+  * **Latitude / Longitude:** Географічні координати для розрахунку сонця.
+  * **UTC Offset Hours:** Зміщення вашого часового поясу відносно UTC.
+  * **Sunrise/Sunset Offset Hours:** Додаткове зміщення в годинах для точного налаштування часу ввімкнення/вимкнення реле.
 
-* **Логіка керування:** Основна логіка пристрою — фактичний час ввімкнення та вимкнення реле — базується **лише** на справжньому астрономічному сході та заході сонця в UTC. Цей внутрішній розклад є стабільним і ніколи не змінюється. Малі повзунки `Sunrise/Sunset Offset Hours` дозволяють вам тонко налаштувати безпосередньо цей розклад.
+### Control
 
-* **Логіка відображення:** Головний повзунок **`UTC Offset Hours`** **ніяк не впливає на логіку перемикання реле**. Його єдина мета — забезпечити зручне відображення місцевого часу у вебінтерфейсі.
+  * **Operation Mode:** Вибір одного з трьох режимів роботи.
+  * **Auto Mode:** Головний вимикач для всіх автоматизацій.
+  * **Relay:** Ручне керування станом реле.
+  * **Light On Duration:** Встановлення тривалості таймера в секундах.
+  * **💡Control Status:** Інформаційний сенсор, що показує поточний стан системи (наприклад, "🌙 Night: Light is ON" або "Countdown: 45s ⏱️").
 
-**Для правильної роботи пристрою втручання користувача не потрібне.** Коригувати повзунок `UTC Offset Hours` потрібно лише в тому випадку, якщо ви хочете, щоб час на дисплеї (наприклад, "Current Time" або "Next Sunrise") відповідав вашому місцевому годиннику. Зазвичай це робиться двічі на рік при переході на літній або зимовий час.
+### WiFi control
 
-  
-## Ліцензія
-Цей проект ліцензований під ліцензією MIT - дивіться файл LICENSE для деталей.
+  * **New Wi-Fi SSID / Password:** Поля для зміни мережі Wi-Fi без перепрошивки пристрою.
 
-## Внесок у проект
-Pull request'и вітаються. Для значних змін, будь ласка, спочатку відкрийте issue для обговорення того, що ви хотіли б змінити.
+-----
+
+## 🛠️ Апаратне забезпечення
+
+  * **Мікроконтролер:** Wemos D1 Mini (або будь-яка інша плата на базі ESP8266).
+  * **Реле:** Стандартний релейний модуль для Arduino/ESP.
+  * **Кнопка:** Будь-яка тактова кнопка без фіксації.
+  * **(Опціонально) RTC Модуль:** DS1307 Real-Time Clock.
+
+**Підключення:**
+
+  * Реле: `D3`
+  * Кнопка: `D6`
+  * DS1307 SDA: `D2`
+  * DS1307 SCL: `D1`
+
+## 📚 Залежності
+
+  * **ESPHome:** Версія 2023.8.0 або новіша.
+  * **(Опціонально) Home Assistant:** Для використання сервісу дистанційного керування.
+
+## 📦 Встановлення
+
+1.  Розмістіть файли `sun-relay.yaml` та `sun_functions.h` в одній директорії конфігурації ESPHome.
+
+2.  Створіть файл `secrets.yaml`, щоб додати облікові дані вашої мережі Wi-Fi.
+
+3.  Скомпілюйте та завантажте прошивку на ваш пристрій.
+
+    ```bash
+    esphome run sun-relay.yaml
+    ```
+
+<!-- end list -->
+
+```
+```
