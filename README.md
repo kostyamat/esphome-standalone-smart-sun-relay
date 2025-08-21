@@ -7,7 +7,7 @@
 [](https://www.google.com/search?q=./LICENSE)
 
 An advanced controller for managing lighting (or any other load) based on ESP8266 and ESPHome. The device can operate completely standalone or be integrated with Home Assistant. The core logic is based on calculating sunrise and sunset for the current geolocation, but its flexible settings allow it to be used as a multi-functional timer.
-![](/docs/webinterface.png) ![](/docs/webinterface-.png)
+![](/docs/webinterface.jpg) ![](/docs/webinterface-.jpg) ![](/docs/webinterface--.jpg)
 ![](/docs/ha-interface.png) ![](/docs/ha-interface-.png)
 
 ## 🚀 Key Features
