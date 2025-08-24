@@ -135,7 +135,7 @@ After adding the device to Home Assistant, a special service for controlling the
 
 **Connections:**
 
-  * Relay: `D3`
+  * Relay: `D3` (comment out or delete `invert: true` if necessary, if your relay triggers on a high input signal)
   * Button: `D6`
   * DS1307 SDA: `D2`
   * DS1307 SCL: `D1`
@@ -143,7 +143,7 @@ After adding the device to Home Assistant, a special service for controlling the
 
 ## 📚 Dependencies
 
-  * **ESPHome:** Version 2023.8.0 or newer.
+  * **ESPHome:** Version 2025.7.0 or newer.
   * **(Optional) Home Assistant:** To use the remote control service.
 
 ## 📦 Installation
@@ -284,7 +284,7 @@ After adding the device to Home Assistant, a special service for controlling the
 
 **Підключення:**
 
-  * Реле: `D3`
+  * Реле: `D3` (закоментуйте або видаліть, за потреби, `invert: true`, якщо ваше реле спрацьовує по високому рівню сигналу на вході)
   * Кнопка: `D6`
   * DS1307 SDA: `D2`
   * DS1307 SCL: `D1`
@@ -293,7 +293,7 @@ After adding the device to Home Assistant, a special service for controlling the
 
 ## 📚 Залежності
 
-  * **ESPHome:** Версія 2023.8.0 або новіша.
+  * **ESPHome:** Версія 2025.7.0 або новіша.
   * **(Опціонально) Home Assistant:** Для використання сервісу дистанційного керування.
 
 ## 📦 Встановлення
