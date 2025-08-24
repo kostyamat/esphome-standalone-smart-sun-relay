@@ -149,10 +149,9 @@ After adding the device to Home Assistant, a special service for controlling the
 ## 📦 Installation
 
 1.  Place the `sun-relay.yaml` and the required `sun_functions.h` file in your ESPHome configuration directory.
-2.  Create a `secrets.yaml` file to add your Wi-Fi credentials.
-3.  Compile and upload the firmware to your device.
+2.  Compile with ESPHome and upload the firmware to your device.
     ```bash
-    esphome run sun-relay.yaml
+    esphome run sun-portal-light-conroller.yaml
     ```
 # [User guide](/docs/GUIDE.md)
 -----
@@ -167,7 +166,6 @@ After adding the device to Home Assistant, a special service for controlling the
 
 Просунутий контролер для керування освітленням (або будь-яким іншим навантаженням) на базі ESP8266 та ESPHome. Пристрій може працювати як повністю автономно, так і в інтеграції з Home Assistant. Основна логіка базується на розрахунку сходу та заходу сонця для поточної геолокації, але гнучкі налаштування дозволяють використовувати його як багатофункціональний таймер.
 
-*(Примітка: На скріншоті показана попередня версія інтерфейсу. Нова версія містить додатковий режим "Timer only" у списку "Operation Mode".)*
 
 ## 🚀 Ключові можливості
 
@@ -301,9 +299,8 @@ After adding the device to Home Assistant, a special service for controlling the
 ## 📦 Встановлення
 
 1.  Розмістіть файли `sun-relay.yaml` та `sun_functions.h` в одній директорії конфігурації ESPHome.
-2.  Створіть файл `secrets.yaml`, щоб додати облікові дані вашої мережі Wi-Fi.
-3.  Скомпілюйте та завантажте прошивку на ваш пристрій.
+2.  Скомпілюйте за допомого ESPHome та завантажте прошивку на ваш пристрій.
     ```bash
-    esphome run sun-relay.yaml
+    esphome run sun-portal-light-conroller.yaml
     ```
-# [User guide](/docs/GUIDE.md)
+# [User guide](/docs/GUIDE.md#%D0%BF%D0%BE%D1%81%D1%96%D0%B1%D0%BD%D0%B8%D0%BA-%D0%B7-%D0%BD%D0%B0%D0%BB%D0%B0%D1%88%D1%82%D1%83%D0%B2%D0%B0%D0%BD%D0%BD%D1%8F-smart-sun-relay)
