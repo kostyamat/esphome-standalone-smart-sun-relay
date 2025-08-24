@@ -139,6 +139,8 @@ After adding the device to Home Assistant, a special service for controlling the
   * Button: `D6`
   * DS1307 SDA: `D2`
   * DS1307 SCL: `D1`
+
+## Practical Use Case: Upgrading a Standard Stairwell Timer to the Smart Sun Relay
 ![](/docs/Schematic_Sun-Relay-with-Timer.png)
 
 ## 📚 Dependencies
@@ -289,6 +291,7 @@ After adding the device to Home Assistant, a special service for controlling the
   * DS1307 SDA: `D2`
   * DS1307 SCL: `D1`
 
+## Приклад реалізації: Схема підключення для сходового освітлення, як заміна стандартним рішенням.
 ![](/docs/Schematic_Sun-Relay-with-Timer_UA.png)
 
 ## 📚 Залежності
