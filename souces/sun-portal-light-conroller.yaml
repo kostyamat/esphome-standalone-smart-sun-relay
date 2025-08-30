@@ -1,7 +1,7 @@
 esphome:
   # General device information
   name: sun-lights-controller
-  friendly_name: "Sun Corridor Lights Controller"
+  friendly_name: "Sunset Lights Controller"
   name_add_mac_suffix: true
 
   # Include custom C++ functions from a local header file
@@ -54,12 +54,6 @@ esphome:
                     }
                   }
         
-        # Step 4: Force the underlying C-library timezone to UTC for consistent time calculations
-        - lambda: |-
-            setenv("TZ", "UTC0", 1);
-            tzset();
-            ESP_LOGI("main", "C-library timezone has been FORCED to UTC.");
-
         # Step 5: If the device was factory reset, apply default configuration values
         - lambda: |-
             if (id(is_configured_flag) != true) {
@@ -209,6 +203,9 @@ wifi:
     then:
       - lambda: 'ESP_LOGD("wifi_sync", "Wi-Fi connected. Forcing SNTP time sync.");'
       - component.update: sntp_time
+      - text_sensor.template.publish:
+          id: current_ssid
+          state: !lambda 'return std::string(WiFi.SSID().c_str());'
 
   # Access Point for initial setup
   ap:
@@ -217,6 +214,7 @@ wifi:
 
 # Logging Configuration
 logger:
+  level: INFO
 
 # Native API for Home Assistant integration
 api:
@@ -251,7 +249,7 @@ api:
 # Over-The-Air (OTA) Update Configuration
 ota:
   - platform: esphome
-  - platform: web_server
+
 
 # Web Server for standalone UI
 web_server:
@@ -280,7 +278,7 @@ time:
   # Primary time source: SNTP (Internet time)
   - platform: sntp
     id: sntp_time
-    timezone: UTC
+    timezone: Etc/UTC
     servers:
       - "pool.ntp.org"
       - "time.google.com"
@@ -303,6 +301,7 @@ time:
   # Backup time source: DS1307 Real-Time Clock
   - platform: ds1307
     id: rtc_time
+    timezone: Etc/UTC
 
 # Global variables used throughout the automations
 globals:
@@ -422,6 +421,7 @@ text:
     id: ssid_text_input
     mode: text
     optimistic: true
+    internal: true
     initial_value: 'New SSID'
     web_server:
       sorting_group_id: wifi_group
@@ -435,6 +435,7 @@ text:
     id: password_text_input
     mode: password
     optimistic: true
+    internal: true
     web_server:
       sorting_group_id: wifi_group
       sorting_weight: 20
@@ -448,6 +449,7 @@ text:
     mode: text
     initial_value: '2025-01-01 12:00'
     optimistic: true
+    internal: true
     web_server:
       sorting_group_id: time_group
       sorting_weight: 5
@@ -502,7 +504,7 @@ number:
     optimistic: true
     min_value: -3
     max_value: 3
-    step: 0.5
+    step: 0.25
     web_server:
       sorting_group_id: location_group
       sorting_weight: 40
@@ -518,7 +520,7 @@ number:
     optimistic: true
     min_value: -3
     max_value: 3
-    step: 0.5
+    step: 0.25
     web_server:
       sorting_group_id: location_group
       sorting_weight: 50
@@ -573,13 +575,35 @@ sensor:
   - platform: wifi_signal
     name: "WiFi RSSI"
     id: wifi_rssi
+    update_interval: 30s
+    internal: true
+    web_server:
+      sorting_group_id: wifi_group
+      sorting_weight: 2
+
+  - platform: template
+    name: "Free RAM"
+    id: free_ram_sensor
+    unit_of_measurement: "kB"
+    icon: "mdi:memory"
     update_interval: 10s
+    entity_category: "diagnostic"
+    lambda: |-
+      return (ESP.getFreeHeap() / 1024.0);
+
+
+# Informational text sensors
+text_sensor:
+  - platform: template
+    name: "WiFi SSID"
+    id: current_ssid
+    icon: "mdi:wifi"
+    update_interval: never
+    internal: true
     web_server:
       sorting_group_id: wifi_group
       sorting_weight: 1
 
-# Informational text sensors
-text_sensor:
   # Displays the current time with UTC offset applied
   - platform: template
     name: "Current Time"
@@ -608,6 +632,7 @@ text_sensor:
     name: "Time Source"
     id: time_source_sensor
     update_interval: never
+    internal: true
     web_server:
       sorting_group_id: time_group
       sorting_weight: 20
@@ -617,7 +642,7 @@ text_sensor:
   - platform: template
     name: "Next Sunrise"
     id: next_sunrise_sensor
-    update_interval: 10s
+    update_interval: never
     web_server:
       sorting_group_id: time_group
       sorting_weight: 30
@@ -640,7 +665,7 @@ text_sensor:
   - platform: template
     name: "Next Sunset"
     id: next_sunset_sensor
-    update_interval: 10s
+    update_interval: never
     web_server:
       sorting_group_id: time_group
       sorting_weight: 40
@@ -673,7 +698,7 @@ text_sensor:
   - platform: template
     name: "Relay ON Time (Today/Tomorrow)"
     id: relay_on_time_sensor
-    update_interval: 10s
+    update_interval: never
     web_server:
       sorting_group_id: control_group
       sorting_weight: 50
@@ -709,7 +734,7 @@ text_sensor:
   - platform: template
     name: "Relay OFF Time (Today/Tomorrow)"
     id: relay_off_time_sensor
-    update_interval: 10s
+    update_interval: never
     web_server:
       sorting_group_id: control_group
       sorting_weight: 60
@@ -785,8 +810,6 @@ interval:
   - interval: 10s
     then:
       - lambda: |-
-          setenv("TZ", "UTC0", 1);
-          tzset();
           if (!id(auto_mode_switch).state) {
             return;
           }
@@ -819,8 +842,6 @@ interval:
                   - lambda: 'ESP_LOGD("rtc_sync", "No WiFi. Performing hourly sync with RTC.");'
                   - ds1307.read_time:
                   - lambda: |-
-                      setenv("TZ", "UTC0", 1);
-                      tzset();
                       id(g_time_source) = "RTC";
                       id(time_source_sensor).publish_state("RTC");
   # Every hour: Syncs time from SNTP if Wi-Fi is connected
@@ -833,12 +854,10 @@ interval:
             - lambda: 'ESP_LOGD("sntp_sync", "Performing periodic SNTP time sync.");'
             - component.update: sntp_time
             - lambda: |-
-                setenv("TZ", "UTC0", 1);
-                tzset();
                 id(g_time_source) = "SNTP";
                 id(time_source_sensor).publish_state("SNTP");
   # Every 30 seconds: Manages the alarm mode logic
-  - interval: 30s
+  - interval: 15s
     then:
       - lambda: |-
           if (id(g_alarm_mode_active)) {
@@ -925,6 +944,7 @@ button:
   # Button to apply manually entered time
   - platform: template
     name: "Apply Time"
+    internal: true
     web_server:
       sorting_group_id: time_group
       sorting_weight: 8
@@ -956,30 +976,11 @@ button:
               - ds1307.write_time:
                   id: rtc_time
               - lambda: 'ESP_LOGI("main", "New time written to DS1307 RTC.");'
-  # Button to restart the device
-  - platform: restart
-    name: "Restart Device"
-    web_server:
-      sorting_group_id: control_group
-      sorting_weight: 80
-  # Button to force-update all template sensors
-  - platform: template
-    name: "Force Update All Sensors"
-    web_server:
-      sorting_group_id: control_group
-      sorting_weight: 70
-    on_press:
-      then:
-        - lambda: |-
-            id(current_time_sensor).update();
-            id(next_sunrise_sensor).update();
-            id(next_sunset_sensor).update();
-            id(relay_on_time_sensor).update();
-            id(relay_off_time_sensor).update();
-            id(sun_control_status).update();
+
   # Button to save and connect to a new Wi-Fi network
   - platform: template
     name: "Save and connect to new Wifi"
+    internal: true
     web_server:
       sorting_group_id: wifi_group
       sorting_weight: 30
@@ -994,12 +995,7 @@ button:
   # Button to factory reset the device (clears Wi-Fi and restored globals)
   - platform: factory_reset
     name: "Factory Reset"
+    internal: true
     web_server:
       sorting_group_id: control_group
       sorting_weight: 90
-
-# Required for some system libraries, can be left empty
-http_request:
-  useragent: esphome/device
-  timeout: 10s
-  verify_ssl: false
