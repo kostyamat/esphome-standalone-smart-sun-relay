@@ -1,28 +1,35 @@
 #include "esphome.h"
 
-// Оголошуємо нашу функцію. Вона буде приймати посилання на компоненти
-// sntp_time та sun, щоб мати доступ до їхніх даних.
-// Вона повертає `optional<bool>`, що дозволяє нам обробити ситуацію,
-// коли час або дані про сонце недоступні.
-optional<bool> is_daytime(time::RealTimeClock *sntp_time, sun::Sun *sun_component) {
-  auto current_time = sntp_time->utcnow();
-  if (!current_time.is_valid()) {
-    return {}; // Повертаємо пусте значення, якщо час невалідний
-  }
+optional<bool> is_daytime(time::RealTimeClock *sntp_time,
+                          sun::Sun *sun_component,
+                          float sunrise_offset_h,
+                          float sunset_offset_h) {
+  auto current_time_utc = sntp_time->utcnow();
+  if (!current_time_utc.is_valid()) return {};
 
-  auto sunrise_opt = sun_component->sunrise(-0.833);
-  auto sunset_opt = sun_component->sunset(-0.833);
-  if (!sunrise_opt.has_value() || !sunset_opt.has_value()) {
-    return {}; // Повертаємо пусте значення, якщо дані про сонце недоступні
-  }
+  auto sunrise_utc_opt = sun_component->sunrise(-0.833);
+  auto sunset_utc_opt = sun_component->sunset(-0.833);
+  if (!sunrise_utc_opt.has_value() || !sunset_utc_opt.has_value()) return {};
 
-  int now_seconds = current_time.hour * 3600 + current_time.minute * 60 + current_time.second;
-  int sunrise_seconds = sunrise_opt.value().hour * 3600 + sunrise_opt.value().minute * 60 + sunrise_opt.value().second;
-  int sunset_seconds = sunset_opt.value().hour * 3600 + sunset_opt.value().minute * 60 + sunset_opt.value().second;
+  // Допоміжна функція для переведення часу в секунди від початку доби
+  auto to_day_seconds = [](const esphome::ESPTime &t) -> long {
+    return t.hour * 3600L + t.minute * 60L + t.second;
+  };
 
-  if (sunrise_seconds < sunset_seconds) {
-    return (now_seconds >= sunrise_seconds && now_seconds < sunset_seconds);
+  long now = to_day_seconds(current_time_utc);
+  long sunrise = to_day_seconds(sunrise_utc_opt.value()) + static_cast<long>(sunrise_offset_h * 3600);
+  long sunset  = to_day_seconds(sunset_utc_opt.value())  + static_cast<long>(sunset_offset_h * 3600);
+
+  // Нормалізація в межах 0–86399
+  sunrise = (sunrise + 86400L) % 86400L;
+  sunset  = (sunset  + 86400L) % 86400L;
+  now     = now % 86400L;
+
+  if (sunrise <= sunset) {
+    // День в межах однієї доби
+    return now >= sunrise && now < sunset;
   } else {
-    return !(now_seconds >= sunset_seconds && now_seconds < sunrise_seconds);
+    // День перетинає межу доби
+    return now >= sunrise || now < sunset;
   }
 }

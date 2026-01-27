@@ -73,7 +73,10 @@ esphome:
         - delay: 2s
         - lambda: |-
             // Sync all web interface elements with their stored global values
-            auto daytime_opt = is_daytime(id(sntp_time), id(sun_component));
+            auto daytime_opt = is_daytime(id(sntp_time), 
+                                  id(sun_component), 
+                                  id(sunrise_offset_hours), 
+                                  id(sunset_offset_hours));
             if (daytime_opt.has_value()) {
               id(g_is_daytime) = daytime_opt.value();
             } else {
@@ -201,7 +204,7 @@ wifi:
   reboot_timeout: 0s
   on_connect:
     then:
-      - lambda: 'ESP_LOGD("wifi_sync", "Wi-Fi connected. Forcing SNTP time sync.");'
+      - lambda: 'ESP_LOGI("wifi_sync", "Wi-Fi connected. Forcing SNTP time sync.");'
       - component.update: sntp_time
       - text_sensor.template.publish:
           id: current_ssid
@@ -249,6 +252,8 @@ api:
 # Over-The-Air (OTA) Update Configuration
 ota:
   - platform: esphome
+  - platform: web_server
+    
 
 
 # Web Server for standalone UI
@@ -279,8 +284,9 @@ time:
   - platform: sntp
     id: sntp_time
     timezone: Etc/UTC
+    update_interval: 1h
     servers:
-      - "pool.ntp.org"
+      - "0.pool.ntp.org"
       - "time.google.com"
     on_time_sync:
       then:
@@ -298,6 +304,7 @@ time:
               id(time_source_sensor).publish_state("SNTP");
               ESP_LOGI("time", "SNTP time synchronized.");
             }
+
   # Backup time source: DS1307 Real-Time Clock
   - platform: ds1307
     id: rtc_time
@@ -472,7 +479,7 @@ text:
             if (sscanf(x.c_str(), "%d", &duration) == 1) {
               if (duration > 0) {
                 id(light_on_duration_seconds) = duration;
-                ESP_LOGD("main", "Light On Duration updated to %d seconds", duration);
+                ESP_LOGI("main", "Light On Duration updated to %d seconds", duration);
               }
             }
 
@@ -514,6 +521,8 @@ number:
         - lambda: |-
             id(sunrise_offset_hours) = x;
             id(relay_off_time_sensor).update();
+        - script.execute: update_status_script
+
   # Input for sunset offset
   - platform: template
     name: "Sunset Offset Hours"
@@ -530,6 +539,7 @@ number:
         - lambda: |-
             id(sunset_offset_hours) = x;
             id(relay_on_time_sensor).update();
+        - script.execute: update_status_script
 
 # Select entity (dropdown) for choosing the operation mode
 select:
@@ -551,7 +561,10 @@ select:
             id(g_operation_mode) = x;
             
             // Instantly re-calculate the day/night state and update the global
-            auto daytime_opt = is_daytime(id(sntp_time), id(sun_component));
+            auto daytime_opt = is_daytime(id(sntp_time), 
+                                  id(sun_component), 
+                                  id(sunrise_offset_hours), 
+                                  id(sunset_offset_hours));
             if (daytime_opt.has_value()) {
               id(g_is_daytime) = daytime_opt.value();
             }
@@ -811,19 +824,18 @@ sun:
 # Timed automations
 interval:
   # Once per minute: The main day/night state calculator
-  - interval: 1min
+  - interval: 10s
     then:
       - lambda: |-
-          auto daytime_opt = is_daytime(id(sntp_time), id(sun_component));
+          auto daytime_opt = is_daytime(id(sntp_time), 
+                                  id(sun_component), 
+                                  id(sunrise_offset_hours), 
+                                  id(sunset_offset_hours));
           if (daytime_opt.has_value()) {
             id(g_is_daytime) = daytime_opt.value();
           } else {
             id(g_is_daytime) = false; // Safe default is "night"
           }
-  # Every 10 seconds: Reacts to the day/night state for the "Sun Relay Only" mode
-  - interval: 10s
-    then:
-      - lambda: |-
           if (!id(auto_mode_switch).state) {
             return;
           }
@@ -834,14 +846,21 @@ interval:
               id(relay).turn_on();
             } else if (!should_be_on && id(relay).state) {
               id(relay).turn_off();
+              id(sun_control_status).update();
             }
           } 
           else if (id(g_operation_mode) == "Sun Relay with Timer") {
             // In timer mode, this interval's only job is to turn off the light at sunrise
             if (id(g_is_daytime) && id(relay).state) {
               id(relay).turn_off();
+              id(sun_control_status).update();
             }
           }
+  # Every 10 seconds: Reacts to the day/night state for the "Sun Relay" modes
+  #- interval: 10s
+  #  then:
+  #    - lambda: |-
+
   # Every hour: Syncs time from RTC if Wi-Fi is disconnected
   - interval: 1h 
     then:
@@ -858,26 +877,15 @@ interval:
                   - lambda: |-
                       id(g_time_source) = "RTC";
                       id(time_source_sensor).publish_state("RTC");
-  # Every hour: Syncs time from SNTP if Wi-Fi is connected
-  - interval: 1h 
-    then:
-      - if:
-          condition:
-            wifi.connected:
-          then:
-            - lambda: 'ESP_LOGD("sntp_sync", "Performing periodic SNTP time sync.");'
-            - component.update: sntp_time
-            - lambda: |-
-                id(g_time_source) = "SNTP";
-                id(time_source_sensor).publish_state("SNTP");
-  # Every 30 seconds: Manages the alarm mode logic
-  - interval: 15s
+
+  # Every 10 seconds: Manages the alarm mode logic
+  - interval: 10s
     then:
       - lambda: |-
           if (id(g_alarm_mode_active)) {
             if (id(corridor_button).state) {
               // Button is still stuck, execute the alarm blink
-              ESP_LOGD("alarm", "Button still stuck, executing alarm cycle.");
+              ESP_LOGW("alarm", "Button still stuck, executing alarm cycle.");
               id(alarm_cycle_script).execute();
             }
           }
@@ -928,7 +936,7 @@ script:
   - id: alarm_cycle_script
     mode: single
     then:
-      - lambda: 'ESP_LOGD("alarm", "Executing alarm cycle: ON for 2s.");'
+      - lambda: 'ESP_LOGW("alarm", "Executing alarm cycle: ON for 2s.");'
       - switch.turn_on: relay
       - delay: 2s
       - switch.turn_off: relay
@@ -937,6 +945,16 @@ script:
     mode: single
     then:
       - lambda: |-
+          auto daytime_opt = is_daytime(id(sntp_time), 
+                                  id(sun_component), 
+                                  id(sunrise_offset_hours), 
+                                  id(sunset_offset_hours));
+          if (daytime_opt.has_value()) {
+            id(g_is_daytime) = daytime_opt.value();
+          } else {
+            id(g_is_daytime) = false; // Safe default is "night"
+          }
+          
           if (id(g_alarm_mode_active)) {
             id(sun_control_status).publish_state("⚠️ ALARM: BUTTON/RELAY STUCK! ⚠️");
             return;
